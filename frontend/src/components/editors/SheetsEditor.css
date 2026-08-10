@@ -1,0 +1,136 @@
+.sheets-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sheets-formula-bar {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  gap: 8px;
+}
+
+.sheets-cell-ref {
+  min-width: 60px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.sheets-formula-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font-mono);
+  background: var(--bg-primary);
+}
+
+.sheets-formula-input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.sheets-grid-wrapper {
+  flex: 1;
+  overflow: auto;
+}
+
+.sheets-grid {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.sheets-col-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  padding: 4px 0;
+  min-width: 80px;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.sheets-row-header {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  padding: 2px 8px;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  min-width: 40px;
+}
+
+.sheets-cell {
+  border: 1px solid var(--border-light);
+  padding: 2px 6px;
+  min-width: 80px;
+  height: 24px;
+  cursor: cell;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sheets-cell:hover {
+  background: rgba(26, 115, 232, 0.04);
+}
+
+.sheets-cell.active {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: -1px;
+  background: rgba(26, 115, 232, 0.08);
+}
+
+.sheets-sheet-tabs {
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+  gap: 2px;
+}
+
+.sheets-sheet-tab {
+  padding: 4px 16px;
+  font-size: 12px;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: 1px solid var(--border-light);
+  border-bottom: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.sheets-sheet-tab.active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.sheets-add-sheet {
+  padding: 4px 10px;
+  font-size: 14px;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+}
+
+.sheets-add-sheet:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}

@@ -1,0 +1,44 @@
+.app-root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.app-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.app-content {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.app-statusbar {
+  height: 24px;
+  background: var(--accent-blue);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 12px;
+  gap: 12px;
+}
+
+.app-statusbar .ai-toggle {
+  color: var(--text-inverse);
+  font-size: 12px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+}
+
+.app-statusbar .ai-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.app-statusbar .statusbar-text {
+  margin-left: auto;
+}
