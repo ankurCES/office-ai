@@ -189,7 +189,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
 
             {activeTab === 'about' && (
               <div className="settings-section settings-about">
-                <h3>Office AI</h3>
+                <h3>Quill</h3>
                 <p>Version 0.1.0</p>
                 <p>A modern office suite with AI assistance, built with Go + Wails.</p>
                 <p className="settings-credits">Powered by Wails, React, and Anthropic Claude.</p>

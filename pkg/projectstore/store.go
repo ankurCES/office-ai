@@ -50,10 +50,10 @@ type Store struct {
 	index   map[string]*ProjectInfo
 }
 
-// New creates a new Store. Data is stored in ~/.office-ai/projects/.
+// New creates a new Store. Data is stored in ~/.quill/projects/.
 func New() *Store {
 	home, _ := os.UserHomeDir()
-	dataDir := filepath.Join(home, ".office-ai", "projects")
+	dataDir := filepath.Join(home, ".quill", "projects")
 	os.MkdirAll(dataDir, 0755)
 
 	s := &Store{

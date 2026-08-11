@@ -81,7 +81,7 @@ type Service struct {
 // New creates a new shell Service.
 func New(i18nSvc *i18n.Service) *Service {
 	home, _ := os.UserHomeDir()
-	dataDir := filepath.Join(home, ".office-ai")
+	dataDir := filepath.Join(home, ".quill")
 	os.MkdirAll(dataDir, 0755)
 
 	s := &Service{
@@ -96,7 +96,7 @@ func New(i18nSvc *i18n.Service) *Service {
 		},
 	}
 	// Initialize with Home tab
-	s.tabs = []*tab{{ID: "home", Kind: TabHome, Title: "Office AI"}}
+	s.tabs = []*tab{{ID: "home", Kind: TabHome, Title: "Quill"}}
 	s.activeID = "home"
 	s.loadSettings()
 	s.loadRecents()

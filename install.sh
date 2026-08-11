@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# install.sh — Single-line curl|bash installer for Office AI
+# install.sh — Single-line curl|bash installer for Quill
 # Usage: curl -fsSL https://raw.githubusercontent.com/ankurCES/office-ai/main/install.sh | bash
 # Or:    ./install.sh [--prefix /usr/local] [--version 0.1.0] [--from-source]
 set -euo pipefail
 
-APP_NAME="office-ai"
-DISPLAY_NAME="Office AI"
+APP_NAME="quill"
+DISPLAY_NAME="Quill"
 GITHUB_REPO="ankurCES/office-ai"
 GITHUB_URL="https://github.com/${GITHUB_REPO}"
 DEFAULT_VERSION="latest"
@@ -482,7 +482,7 @@ main() {
   printf "${GREEN}${BOLD}"
   cat <<'DONE'
   ┌─────────────────────────────────────────────┐
-  │       Office AI installed successfully!      │
+  │       Quill installed successfully!      │
   └─────────────────────────────────────────────┘
 DONE
   printf "${NC}\n"

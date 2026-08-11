@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# build.sh — Cross-platform build script for Office AI (Go + Wails)
+# build.sh — Cross-platform build script for Quill (Go + Wails)
 # Supports: macOS (Intel/Apple Silicon), Linux (amd64/arm64)
 # Usage: ./build.sh [--platform <os/arch>] [--clean] [--dev]
 set -euo pipefail
 
 VERSION="${VERSION:-0.1.0}"
-APP_NAME="office-ai"
+APP_NAME="quill"
 BUILD_DIR="build/bin"
 FRONTEND_DIR="frontend"
 
@@ -73,7 +73,7 @@ CURRENT_PLATFORM="$(detect_platform)"
 TARGET_OS="${TARGET_PLATFORM%/*}"
 TARGET_ARCH="${TARGET_PLATFORM#*/}"
 
-log "Office AI Build System v${VERSION}"
+log "Quill Build System v${VERSION}"
 log "Target: ${TARGET_PLATFORM}  (host: ${CURRENT_PLATFORM})"
 
 # ── Detect webkit2gtk version (Linux) ────────────────────────────────
@@ -250,8 +250,8 @@ create_macos_bundle() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>Office AI</string>
-  <key>CFBundleDisplayName</key><string>Office AI</string>
+  <key>CFBundleName</key><string>Quill</string>
+  <key>CFBundleDisplayName</key><string>Quill</string>
   <key>CFBundleIdentifier</key><string>com.officeai.app</string>
   <key>CFBundleVersion</key><string>${VERSION}</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
@@ -275,14 +275,14 @@ create_linux_desktop_entry() {
 
   cat > "${BUILD_DIR}/${APP_NAME}.desktop" <<DESKTOP
 [Desktop Entry]
-Name=Office AI
+Name=Quill
 Comment=AI-powered office suite
 Exec=${APP_NAME}
-Icon=office-ai
+Icon=quill
 Type=Application
 Categories=Office;WordProcessor;Spreadsheet;Presentation;
 Terminal=false
-StartupWMClass=Office AI
+StartupWMClass=Quill
 DESKTOP
   ok "Desktop entry → ${BUILD_DIR}/${APP_NAME}.desktop"
 }

@@ -41,7 +41,7 @@ func main() {
 	markdownSvc := markdown.New(i18nSvc, store, agentLoop)
 
 	err := wails.Run(&options.App{
-		Title:            "Office AI",
+		Title:            "Quill",
 		Width:            1440,
 		Height:           900,
 		MinWidth:         800,

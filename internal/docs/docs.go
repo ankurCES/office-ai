@@ -1023,7 +1023,7 @@ func (s *Service) doAutosave(tabID string) {
 	autosavePath := state.FilePath
 	if autosavePath == "" {
 		dir := os.TempDir()
-		autosavePath = filepath.Join(dir, fmt.Sprintf("office-ai-autosave-%s.docx", tabID))
+		autosavePath = filepath.Join(dir, fmt.Sprintf("quill-autosave-%s.docx", tabID))
 	} else {
 		dir := filepath.Dir(autosavePath)
 		base := filepath.Base(autosavePath)

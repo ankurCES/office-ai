@@ -1,4 +1,4 @@
-// Package config provides centralized configuration management for Office AI.
+// Package config provides centralized configuration management for Quill.
 // Mirrors GenOffice's config patterns: layered config (defaults → file → env → runtime),
 // JSON persistence, and typed accessors for all app settings.
 package config
@@ -94,7 +94,7 @@ func DefaultConfig() Config {
 // New creates a new config Manager, loading from disk if available.
 func New() *Manager {
 	home, _ := os.UserHomeDir()
-	dataDir := filepath.Join(home, ".office-ai")
+	dataDir := filepath.Join(home, ".quill")
 	os.MkdirAll(dataDir, 0755)
 
 	m := &Manager{

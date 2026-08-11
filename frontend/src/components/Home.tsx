@@ -10,10 +10,10 @@ interface HomeProps {
 }
 
 const NEW_ITEMS = [
-  { kind: 'docs' as const, label: 'Document', icon: DocIcon, color: 'var(--color-docs)' },
-  { kind: 'sheets' as const, label: 'Spreadsheet', icon: SheetIcon, color: 'var(--color-sheets)' },
-  { kind: 'slides' as const, label: 'Presentation', icon: SlideIcon, color: 'var(--color-slides)' },
-  { kind: 'markdown' as const, label: 'Markdown', icon: MarkdownIcon, color: 'var(--color-markdown)' },
+  { kind: 'docs' as const, label: 'Quill Write', icon: DocIcon, color: 'var(--color-docs)' },
+  { kind: 'sheets' as const, label: 'Quill Calc', icon: SheetIcon, color: 'var(--color-sheets)' },
+  { kind: 'slides' as const, label: 'Quill Present', icon: SlideIcon, color: 'var(--color-slides)' },
+  { kind: 'markdown' as const, label: 'Quill Note', icon: MarkdownIcon, color: 'var(--color-markdown)' },
 ]
 
 const EXT_TO_KIND: Record<string, TabInfo['kind']> = {
@@ -76,9 +76,9 @@ export function Home({ onOpenTab }: HomeProps) {
     <div className="home">
       <div className="home-hero">
         <h1 className="home-title">
-          <span className="home-logo">✨</span> Office AI
+          <span className="home-logo">🪶</span> Quill
         </h1>
-        <p className="home-subtitle">Create, edit, and collaborate with AI assistance</p>
+        <p className="home-subtitle">AI-powered desktop office suite</p>
       </div>
 
       <div className="home-section">

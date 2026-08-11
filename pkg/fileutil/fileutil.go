@@ -112,7 +112,7 @@ func SafeWrite(path string, data []byte) error {
 		return err
 	}
 
-	tmp, err := os.CreateTemp(dir, ".office-ai-*.tmp")
+	tmp, err := os.CreateTemp(dir, ".quill-*.tmp")
 	if err != nil {
 		return fmt.Errorf("create temp: %w", err)
 	}
@@ -172,9 +172,9 @@ func Hash(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// TempDir creates a temporary directory for Office AI operations.
+// TempDir creates a temporary directory for Quill operations.
 func TempDir(prefix string) (string, error) {
-	return os.MkdirTemp("", "office-ai-"+prefix+"-")
+	return os.MkdirTemp("", "quill-"+prefix+"-")
 }
 
 // EnsureDir creates a directory if it doesn't exist.

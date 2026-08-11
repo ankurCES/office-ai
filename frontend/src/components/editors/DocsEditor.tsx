@@ -65,7 +65,7 @@ export function DocsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: Do
       const result = await DocsService.save(tabId)
       if (result?.success) {
         onDirtyChange(false)
-        WailsRuntime.windowSetTitle(`Office AI — ${result.file_path?.split(/[/\\]/).pop() || 'Document'}`)
+        WailsRuntime.windowSetTitle(`Quill — ${result.file_path?.split(/[/\\]/).pop() || 'Document'}`)
       } else if (result?.error) {
         setSaveError(result.error)
       }

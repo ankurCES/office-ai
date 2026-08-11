@@ -130,7 +130,7 @@ export function App() {
       {activeTab && activeTab.kind !== 'home' && (
         <div className="app-statusbar">
           <button className="ai-toggle" onClick={() => setShowAiPanel((v) => !v)}>
-            ✨ AI Assistant
+            🪶 Quill AI
           </button>
           <span className="statusbar-text">
             {activeTab.isDirty ? '● Modified' : 'Saved'}
