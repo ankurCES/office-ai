@@ -14,21 +14,20 @@ DEFAULT_PREFIX="/usr/local"
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
 
-log()  { printf "${BLUE}▸${NC} %s\n" "$*"; }
-ok()   { printf "${GREEN}✓${NC} %s\n" "$*"; }
-warn() { printf "${YELLOW}⚠${NC} %s\n" "$*"; }
+log()  { printf "${BLUE}▸${NC} %s\n" "$*" >&2; }
+ok()   { printf "${GREEN}✓${NC} %s\n" "$*" >&2; }
+warn() { printf "${YELLOW}⚠${NC} %s\n" "$*" >&2; }
 err()  { printf "${RED}✗${NC} %s\n" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 banner() {
   printf "\n${BOLD}${BLUE}"
   cat <<'BANNER'
-   ____  __  __ _              _    ___
-  / __ \/ _|/ _(_)            / \  |_ _|
- | |  | | |_| |_ _  ___ ___ / _ \  | |
- | |  | |  _|  _| |/ __/ _ / ___ \ | |
- | |__| | | | | | | (_|  __/ /   \ \| |
-  \____/|_| |_| |_|\___\___/_/   \_\___|
+   ___        _ _ _
+  / _ \ _   _(_) | |
+ | | | | | | | | | |
+ | |_| | |_| | | | |
+  \__\_\\__,_|_|_|_|
 BANNER
   printf "${NC}\n"
   printf "  ${BOLD}${DISPLAY_NAME} Installer${NC}\n"
@@ -194,12 +193,14 @@ do_uninstall() {
   banner
   log "Uninstalling ${DISPLAY_NAME}..."
 
-  # Binary
-  for p in "${PREFIX}/bin/${APP_NAME}" "/usr/local/bin/${APP_NAME}" "$HOME/.local/bin/${APP_NAME}"; do
-    if [[ -f "$p" ]]; then
-      rm -f "$p" 2>/dev/null || sudo rm -f "$p"
-      ok "Removed $p"
-    fi
+  # Binary (current name + legacy office-ai name)
+  for name in "${APP_NAME}" "office-ai"; do
+    for p in "${PREFIX}/bin/${name}" "/usr/local/bin/${name}" "$HOME/.local/bin/${name}"; do
+      if [[ -f "$p" ]]; then
+        rm -f "$p" 2>/dev/null || sudo rm -f "$p"
+        ok "Removed $p"
+      fi
+    done
   done
 
   # macOS app bundle
@@ -217,10 +218,12 @@ do_uninstall() {
   done
 
   # Config (ask first)
-  if [[ -d "$HOME/.${APP_NAME}" ]]; then
-    warn "Config directory exists: ~/.${APP_NAME}"
-    warn "Remove manually with: rm -rf ~/.${APP_NAME}"
-  fi
+  for cfg_dir in "$HOME/.${APP_NAME}" "$HOME/.office-ai"; do
+    if [[ -d "$cfg_dir" ]]; then
+      warn "Config directory exists: ${cfg_dir}"
+      warn "Remove manually with: rm -rf ${cfg_dir}"
+    fi
+  done
 
   ok "Uninstall complete"
   exit 0
@@ -285,8 +288,13 @@ build_from_source() {
 
   cd "$src_dir"
 
-  # Ensure wails is in PATH
-  export PATH="$HOME/go/bin:$PATH"
+  # Ensure Go + Wails are in PATH (subshell doesn't inherit parent exports)
+  export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.local/bin:$PATH"
+
+  # Clean stale binaries from previous builds/rebrands
+  rm -f build/bin/office-ai build/bin/office-ai-* 2>/dev/null || true
+  rm -f build/bin/quill 2>/dev/null || true
+  log "Cleaned stale binaries from build/bin/" >&2
 
   # Detect webkit2gtk version for Linux
   local webkit_tag=""
@@ -350,6 +358,21 @@ install_binary() {
   local dest="${bin_dir}/${APP_NAME}"
 
   log "Installing to ${dest}..."
+
+  # Remove legacy office-ai binary if it exists (rebrand migration)
+  local legacy="${bin_dir}/office-ai"
+  if [[ -f "$legacy" ]]; then
+    log "Removing legacy office-ai binary at ${legacy}..." >&2
+    rm -f "$legacy" 2>/dev/null || sudo rm -f "$legacy"
+    ok "Removed legacy binary: ${legacy}"
+  fi
+
+  # Remove legacy config dir migration note
+  if [[ -d "$HOME/.office-ai" && ! -d "$HOME/.quill" ]]; then
+    log "Migrating config from ~/.office-ai to ~/.quill..." >&2
+    cp -r "$HOME/.office-ai" "$HOME/.quill" 2>/dev/null || true
+    ok "Config migrated to ~/.quill"
+  fi
 
   if [[ -w "$bin_dir" ]] || mkdir -p "$bin_dir" 2>/dev/null; then
     cp "$binary" "$dest"

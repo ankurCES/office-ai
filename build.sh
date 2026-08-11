@@ -9,6 +9,9 @@ APP_NAME="quill"
 BUILD_DIR="build/bin"
 FRONTEND_DIR="frontend"
 
+# Ensure Go + Wails are discoverable
+export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.local/bin:$PATH"
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -135,6 +138,9 @@ check_prereqs() {
 }
 
 do_clean() {
+  # Always remove legacy-named binaries from rebrand (office-ai → quill)
+  rm -f "${BUILD_DIR}/office-ai" "${BUILD_DIR}/office-ai-"* 2>/dev/null || true
+
   if $CLEAN; then
     log "Cleaning build artifacts..."
     rm -rf "$BUILD_DIR"
