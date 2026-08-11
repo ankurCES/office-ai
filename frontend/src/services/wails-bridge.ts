@@ -1,366 +1,63 @@
 /**
- * Wails bridge: wraps window.go.* bindings with typed async functions.
- * In dev mode (no Wails runtime), calls fall through to mock implementations.
+ * Wails Bridge — thin typed wrappers around Wails-generated bindings.
  *
- * Binding paths match Wails v2 conventions:
- *   window.go['package/path']['StructName']['MethodName']
- * For our project the services are bound at their package path.
+ * Wails generates JS at frontend/wailsjs/go/<pkg>/Service.js that call
+ * window['go']['<pkg>']['Service']['Method'](). We re-export those
+ * with our domain types so components import from one place.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type GoBinding = (...args: any[]) => Promise<any>
+// ── Wails-generated binding imports ────────────────────────────────
+import * as DocsBinding from '../../wailsjs/go/docs/Service'
+import * as SheetsBinding from '../../wailsjs/go/sheets/Service'
+import * as SlidesBinding from '../../wailsjs/go/slides/Service'
+import * as PdfBinding from '../../wailsjs/go/pdf/Service'
+import * as MarkdownBinding from '../../wailsjs/go/markdown/Service'
+import * as ShellBinding from '../../wailsjs/go/shell/Service'
+import * as AppBinding from '../../wailsjs/go/main/App'
+import * as AIBinding from '../../wailsjs/go/aiprovider/Service'
 
-function getBinding(pkg: string, struct: string, method: string): GoBinding | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const w = window as any
-    return w?.go?.[pkg]?.[struct]?.[method] ?? null
-  } catch {
-    return null
-  }
-}
+// ── Wails runtime ──────────────────────────────────────────────────
+import { WindowSetTitle } from '../../wailsjs/runtime/runtime'
 
-async function call<T>(
-  pkg: string,
-  struct: string,
-  method: string,
-  args: unknown[] = [],
-  fallback?: T,
-): Promise<T> {
-  const fn = getBinding(pkg, struct, method)
-  if (fn) return fn(...args) as Promise<T>
-  if (fallback !== undefined) return fallback
-  throw new Error(`Wails binding not available: ${pkg}.${struct}.${method}`)
-}
+// ── Domain types ───────────────────────────────────────────────────
 
-// ── Shell Service ──
-// Go: internal/shell.Service
-export const ShellService = {
-  getTabs: () =>
-    call<TabSummary[]>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'GetTabs', [], []),
-  openTab: (kind: string, filePath: string) =>
-    call<string>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'OpenTab', [kind, filePath], ''),
-  activateTab: (id: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'ActivateTab', [id]),
-  closeTab: (id: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'CloseTab', [id], true),
-  setTabDirty: (id: string, dirty: boolean) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'SetTabDirty', [id, dirty]),
-  setTabTitle: (id: string, title: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'SetTabTitle', [id, title]),
-  getSettings: () =>
-    call<AppSettings>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'GetSettings', [], DEFAULT_SETTINGS),
-  updateSetting: (key: string, value: unknown) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'UpdateSetting', [key, value]),
-  getRecentFiles: () =>
-    call<RecentFile[]>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'GetRecentFiles', [], []),
-  toggleStarred: (path: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'ToggleStarred', [path]),
-  removeRecent: (path: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/shell', 'Service', 'RemoveRecent', [path]),
-}
-
-// ── Docs Service ──
-// Go: internal/docs.Service
-export const DocsService = {
-  openFile: (tabId: string, path: string) =>
-    call<OpenFileResult>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'OpenFile', [tabId, path]),
-  newBlank: (tabId: string) =>
-    call<OpenFileResult>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'NewBlank', [tabId]),
-  save: (tabId: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'Save', [tabId]),
-  saveAs: (tabId: string, path: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'SaveAs', [tabId, path]),
-  getState: (tabId: string) =>
-    call<DocState | null>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'GetState', [tabId], null),
-  isDirty: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'IsDirty', [tabId], false),
-  close: (tabId: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'Close', [tabId]),
-  updateParagraph: (tabId: string, index: number, text: string, bold: boolean, italic: boolean, align: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'UpdateParagraph', [tabId, index, text, bold, italic, align]),
-  insertParagraph: (tabId: string, index: number, text: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'InsertParagraph', [tabId, index, text]),
-  deleteParagraph: (tabId: string, index: number) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'DeleteParagraph', [tabId, index]),
-  findReplace: (tabId: string, search: string, replace: string, replaceAll: boolean) =>
-    call<FindReplaceResult>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'FindReplace', [tabId, search, replace, replaceAll]),
-  find: (tabId: string, search: string) =>
-    call<number[]>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'Find', [tabId, search], []),
-  undo: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'Undo', [tabId], false),
-  redo: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'Redo', [tabId], false),
-  getParagraphs: (tabId: string) =>
-    call<ParaInfo[]>('github.com/ankurCES/office-ai/internal/docs', 'Service', 'GetParagraphs', [tabId], []),
-}
-
-// ── Sheets Service ──
-// Go: internal/sheets.Service
-// API: GetCellRange(tabID, sheetName, startRow, startCol, rows, cols) → [][]CellData
-//      SetCellValue(tabID, sheetName, cellRef, value) → SaveResult
-//      NewWorkbook(tabID) → map
-export const SheetsService = {
-  openFile: (tabId: string, path: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'OpenFile', [tabId, path]),
-  newWorkbook: (tabId: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'NewWorkbook', [tabId]),
-  getState: (tabId: string) =>
-    call<WorkbookState | null>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'GetState', [tabId], null),
-  getCellRange: (tabId: string, sheetName: string, startRow: number, startCol: number, rows: number, cols: number) =>
-    call<CellData[][]>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'GetCellRange', [tabId, sheetName, startRow, startCol, rows, cols], []),
-  getAllRows: (tabId: string, sheetName: string) =>
-    call<string[][]>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'GetAllRows', [tabId, sheetName], []),
-  setCellValue: (tabId: string, sheetName: string, cellRef: string, value: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'SetCellValue', [tabId, sheetName, cellRef, value]),
-  setCellFormula: (tabId: string, sheetName: string, cellRef: string, formula: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'SetCellFormula', [tabId, sheetName, cellRef, formula]),
-  addSheet: (tabId: string, name: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'AddSheet', [tabId, name]),
-  deleteSheet: (tabId: string, name: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'DeleteSheet', [tabId, name]),
-  renameSheet: (tabId: string, oldName: string, newName: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'RenameSheet', [tabId, oldName, newName]),
-  mergeCells: (tabId: string, sheetName: string, startCell: string, endCell: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'MergeCells', [tabId, sheetName, startCell, endCell]),
-  insertRow: (tabId: string, sheetName: string, row: number) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'InsertRow', [tabId, sheetName, row]),
-  insertCol: (tabId: string, sheetName: string, col: number) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'InsertCol', [tabId, sheetName, col]),
-  deleteRow: (tabId: string, sheetName: string, row: number) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'DeleteRow', [tabId, sheetName, row]),
-  setColumnWidth: (tabId: string, sheetName: string, startCol: string, endCol: string, width: number) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'SetColumnWidth', [tabId, sheetName, startCol, endCol, width]),
-  setRowHeight: (tabId: string, sheetName: string, row: number, height: number) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'SetRowHeight', [tabId, sheetName, row, height]),
-  setAutoFilter: (tabId: string, sheetName: string, rangeRef: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'SetAutoFilter', [tabId, sheetName, rangeRef]),
-  save: (tabId: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'Save', [tabId]),
-  close: (tabId: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/sheets', 'Service', 'Close', [tabId]),
-}
-
-// ── Slides Service ──
-// Go: internal/slides.Service
-export const SlidesService = {
-  openFile: (tabId: string, path: string) =>
-    call<SlideOpenResult>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'OpenFile', [tabId, path]),
-  newBlank: (tabId: string) =>
-    call<SlideOpenResult>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'NewBlank', [tabId]),
-  addSlide: (tabId: string) =>
-    call<SlideInfo>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'AddSlide', [tabId]),
-  deleteSlide: (tabId: string, index: number) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'DeleteSlide', [tabId, index], false),
-  duplicateSlide: (tabId: string, index: number) =>
-    call<SlideInfo>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'DuplicateSlide', [tabId, index]),
-  moveSlide: (tabId: string, from: number, to: number) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'MoveSlide', [tabId, from, to], false),
-  updateElement: (tabId: string, slideIndex: number, elemId: string, text: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'UpdateElement', [tabId, slideIndex, elemId, text], false),
-  getSlides: (tabId: string) =>
-    call<SlideInfo[]>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'GetSlides', [tabId], []),
-  getState: (tabId: string) =>
-    call<DeckState | null>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'GetState', [tabId], null),
-  isDirty: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'IsDirty', [tabId], false),
-  save: (tabId: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'Save', [tabId]),
-  saveAs: (tabId: string, path: string) =>
-    call<SaveResult>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'SaveAs', [tabId, path]),
-  undo: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'Undo', [tabId], false),
-  redo: (tabId: string) =>
-    call<boolean>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'Redo', [tabId], false),
-  close: (tabId: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/slides', 'Service', 'Close', [tabId]),
-}
-
-// ── PDF Service ──
-// Go: internal/pdf.Service
-export const PdfService = {
-  openFile: (tabId: string, path: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'OpenFile', [tabId, path]),
-  getState: (tabId: string) =>
-    call<PDFState | null>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'GetState', [tabId], null),
-  extractText: (tabId: string) =>
-    call<string>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'ExtractText', [tabId], ''),
-  extractPages: (tabId: string, pages: number[], outputPath: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'ExtractPages', [tabId, pages, outputPath]),
-  mergeFiles: (inputPaths: string[], outputPath: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'MergeFiles', [inputPaths, outputPath]),
-  splitFile: (tabId: string, outputDir: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'SplitFile', [tabId, outputDir]),
-  rotatePages: (tabId: string, rotation: number, pageNums: number[]) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'RotatePages', [tabId, rotation, pageNums]),
-  addWatermark: (tabId: string, text: string, outputPath: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'AddWatermark', [tabId, text, outputPath]),
-  validate: (path: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'Validate', [path]),
-  optimize: (tabId: string, outputPath: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'Optimize', [tabId, outputPath]),
-  save: (tabId: string) =>
-    call<OpResult>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'Save', [tabId]),
-  close: (tabId: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/pdf', 'Service', 'Close', [tabId]),
-}
-
-// ── Markdown Service ──
-// Go: internal/markdown.Service
-export const MarkdownService = {
-  openFile: (tabId: string, path: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'OpenFile', [tabId, path]),
-  newBlank: (tabId: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'NewBlank', [tabId]),
-  updateContent: (tabId: string, content: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'UpdateContent', [tabId, content]),
-  save: (tabId: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'Save', [tabId]),
-  saveAs: (tabId: string, path: string) =>
-    call<Record<string, unknown>>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'SaveAs', [tabId, path]),
-  close: (tabId: string) =>
-    call<void>('github.com/ankurCES/office-ai/internal/markdown', 'Service', 'Close', [tabId]),
-}
-
-// ── AI Provider Service ──
-// Go: pkg/aiprovider.Provider
-export const AIProviderService = {
-  chat: (req: ChatRequest) =>
-    call<ChatResponse>('github.com/ankurCES/office-ai/pkg/aiprovider', 'Provider', 'Chat', [req]),
-  chatStream: (req: ChatRequest) =>
-    call<string>('github.com/ankurCES/office-ai/pkg/aiprovider', 'Provider', 'ChatStream', [req], ''),
-  getSettings: () =>
-    call<AISettings>('github.com/ankurCES/office-ai/pkg/aiprovider', 'Provider', 'GetSettings', [], DEFAULT_AI_SETTINGS),
-  updateSettings: (settings: Partial<AISettings>) =>
-    call<void>('github.com/ankurCES/office-ai/pkg/aiprovider', 'Provider', 'UpdateSettings', [settings]),
-}
-
-// ── Agent Service ──
-// Go: pkg/agentcore.Agent
-export const AgentService = {
-  run: (prompt: string, opts?: { skill?: string }) =>
-    call<RunResult>('github.com/ankurCES/office-ai/pkg/agentcore', 'Agent', 'Run', [prompt, opts]),
-  getHistory: () =>
-    call<AIMessage[]>('github.com/ankurCES/office-ai/pkg/agentcore', 'Agent', 'GetHistory', [], []),
-  clearHistory: () =>
-    call<void>('github.com/ankurCES/office-ai/pkg/agentcore', 'Agent', 'ClearHistory'),
-}
-
-// ── I18n Service ──
-// Go: pkg/i18n.Service
-export const I18nService = {
-  getLang: () =>
-    call<string>('github.com/ankurCES/office-ai/pkg/i18n', 'Service', 'GetLang', [], 'en'),
-  setLang: (lang: string) =>
-    call<void>('github.com/ankurCES/office-ai/pkg/i18n', 'Service', 'SetLang', [lang]),
-  translate: (key: string) =>
-    call<string>('github.com/ankurCES/office-ai/pkg/i18n', 'Service', 'Translate', [key], key),
-}
-
-// ── Config Service ──
-// Go: pkg/config.Manager
-export const ConfigService = {
-  get: () =>
-    call<AppConfig>('github.com/ankurCES/office-ai/pkg/config', 'Manager', 'Get', []),
-  getAI: () =>
-    call<AIProviderConfig>('github.com/ankurCES/office-ai/pkg/config', 'Manager', 'GetAI', []),
-  update: (partial: Record<string, unknown>) =>
-    call<void>('github.com/ankurCES/office-ai/pkg/config', 'Manager', 'Update', [partial]),
-  setAIKey: (key: string) =>
-    call<void>('github.com/ankurCES/office-ai/pkg/config', 'Manager', 'SetAIKey', [key]),
-  setAIProvider: (provider: string, model: string, apiKey: string) =>
-    call<void>('github.com/ankurCES/office-ai/pkg/config', 'Manager', 'SetAIProvider', [provider, model, apiKey]),
-}
-
-// ── Wails Runtime ──
-export const WailsRuntime = {
-  openFileDialog: async (): Promise<string> => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      if (w?.go?.main?.App?.OpenFileDialog) {
-        return w.go.main.App.OpenFileDialog()
-      }
-      // Wails runtime API fallback
-      if (w?.runtime?.OpenFileDialog) {
-        return w.runtime.OpenFileDialog({})
-      }
-    } catch {}
-    return ''
-  },
-  saveFileDialog: async (): Promise<string> => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      if (w?.go?.main?.App?.SaveFileDialog) {
-        return w.go.main.App.SaveFileDialog()
-      }
-      if (w?.runtime?.SaveFileDialog) {
-        return w.runtime.SaveFileDialog({})
-      }
-    } catch {}
-    return ''
-  },
-  windowSetTitle: (title: string) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      w?.runtime?.WindowSetTitle?.(title)
-    } catch {}
-  },
-  eventEmit: (name: string, data?: unknown) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      w?.runtime?.EventsEmit?.(name, data)
-    } catch {}
-  },
-  eventOn: (name: string, callback: (...args: unknown[]) => void) => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const w = window as any
-      w?.runtime?.EventsOn?.(name, callback)
-    } catch {}
-  },
-}
-
-// ── Type Definitions ──
 export interface TabSummary {
   id: string
   kind: string
   title: string
-  file_path: string
-  dirty: boolean
-}
-
-export interface AppSettings {
-  theme: string
-  language: string
-  auto_save: boolean
-  auto_save_interval: number
-  show_recent: boolean
+  file_path?: string
+  is_dirty?: boolean
+  active?: boolean
 }
 
 export interface RecentFile {
   path: string
+  name: string
   title: string
   kind: string
-  opened_at: string
+  is_starred: boolean
   starred: boolean
-  recent: boolean
+  opened_at: any
 }
 
 export interface OpenFileResult {
   success: boolean
-  file_path: string
-  title: string
+  file_path?: string
+  title?: string
   error?: string
+  word_count?: number
+  char_count?: number
+  page_count?: number
+  paragraphs?: ParaInfo[]
 }
 
-export interface SaveResult {
-  success: boolean
-  file_path: string
-  error?: string
+export interface ParaInfo {
+  index: number
+  text: string
+  style?: string
+  alignment?: string
+  is_bold?: boolean
+  is_italic?: boolean
 }
 
 export interface DocState {
@@ -368,67 +65,67 @@ export interface DocState {
   is_dirty: boolean
   title: string
   word_count: number
+  char_count: number
   page_count: number
-  paragraphs?: string[]
+  paragraphs?: ParaInfo[]
 }
 
-export interface ParaInfo {
-  index: number
-  text: string
-  bold: boolean
-  italic: boolean
-  alignment: string
+export interface SaveResult {
+  success: boolean
+  file_path?: string
+  error?: string
 }
 
 export interface FindReplaceResult {
-  matches: number
-  replaced: number
+  count: number
+  success: boolean
+  error?: string
+}
+
+export interface CellData {
+  row: number
+  col: number
+  value: string
+  formula?: string
+  type: string
+}
+
+export interface WorksheetInfo {
+  id: number
+  name: string
+  index: number
+  row_count: number
+  column_count: number
+  hidden: boolean
 }
 
 export interface WorkbookState {
   file_path: string
-  is_dirty: boolean
   title: string
+  is_dirty: boolean
   sheets: WorksheetInfo[]
   active_sheet: string
 }
 
-export interface WorksheetInfo {
-  name: string
-  index: number
-  row_count: number
-  col_count: number
-}
-
-export interface CellData {
-  value: string
-  formula: string
-  type: string
-}
-
-export interface SlideOpenResult {
-  success: boolean
-  title: string
-  file_path: string
-  slide_count: number
-  slides: SlideInfo[]
-  error?: string
+export interface SlideElement {
+  id: string
+  kind: string
+  x: number
+  y: number
+  w: number
+  h: number
+  text?: string
+  bold?: boolean
+  italic?: boolean
+  align?: string
+  ph_type?: string
+  image_id?: string
 }
 
 export interface SlideInfo {
   index: number
-  title: string
+  title?: string
   elements: SlideElement[]
-}
-
-export interface SlideElement {
-  id: string
-  type: string
-  text: string
-  x: number
-  y: number
-  width: number
-  height: number
 }
 
 export interface DeckState {
@@ -437,19 +134,36 @@ export interface DeckState {
   title: string
   slide_count: number
   slides: SlideInfo[]
+  width: number
+  height: number
+}
+
+export interface SlideOpenResult {
+  success: boolean
+  file_path?: string
+  title?: string
+  error?: string
+  slide_count?: number
+  slides?: SlideInfo[]
+  width?: number
+  height?: number
 }
 
 export interface PDFState {
   file_path: string
   title: string
+  is_dirty: boolean
   page_count: number
-  metadata: Record<string, string>
+  pages: any[]
+  meta: any
 }
 
-export interface OpResult {
-  success: boolean
-  message: string
-  error?: string
+export interface AppSettings {
+  theme: string
+  language: string
+  onboard_done: boolean
+  default_save_dir?: string
+  update_channel: string
 }
 
 export interface AISettings {
@@ -458,57 +172,9 @@ export interface AISettings {
   model: string
 }
 
-export interface AIProviderConfig {
-  provider: string
-  api_key: string
-  model: string
-  base_url: string
-  max_tokens: number
-  temperature: number
-}
-
-export interface AppConfig {
-  ai: AIProviderConfig
-  editor: EditorConfig
-  window: WindowConfig
-  language: string
-  theme: string
-  data_dir: string
-  log_level: string
-}
-
-export interface EditorConfig {
-  font_family: string
-  font_size: number
-  tab_size: number
-  word_wrap: boolean
-  line_numbers: boolean
-  auto_save: boolean
-  auto_save_delay_ms: number
-  spell_check: boolean
-}
-
-export interface WindowConfig {
-  width: number
-  height: number
-  x: number
-  y: number
-  maximized: boolean
-  fullscreen: boolean
-}
-
-const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'system',
-  language: 'en',
-  auto_save: true,
-  auto_save_interval: 30,
-  show_recent: true,
-}
-
-const DEFAULT_AI_SETTINGS: AISettings = {
-  provider: 'anthropic',
-  api_key: '',
-  model: 'claude-sonnet-4-20250514',
+export interface AIMessage {
+  role: 'user' | 'assistant' | 'tool'
+  text?: string
 }
 
 export interface ChatRequest {
@@ -522,13 +188,210 @@ export interface ChatResponse {
   usage?: { input_tokens: number; output_tokens: number }
 }
 
-export interface AIMessage {
-  role: 'user' | 'assistant' | 'tool'
-  text?: string
+// ── Shell Service ──────────────────────────────────────────────────
+
+export const ShellService = {
+  getTabs: () => ShellBinding.GetTabs() as any as Promise<TabSummary[]>,
+  openTab: (kind: string, filePath: string) => ShellBinding.OpenTab(kind, filePath),
+  activateTab: (id: string) => ShellBinding.ActivateTab(id),
+  closeTab: (id: string) => ShellBinding.CloseTab(id),
+  setTabDirty: (id: string, dirty: boolean) => ShellBinding.SetTabDirty(id, dirty),
+  setTabTitle: (id: string, title: string) => ShellBinding.SetTabTitle(id, title),
+  getSettings: () => ShellBinding.GetSettings() as any as Promise<AppSettings>,
+  updateSetting: (key: string, value: unknown) => ShellBinding.UpdateSetting(key, value),
+  getRecentFiles: () => ShellBinding.GetRecentFiles() as any as Promise<RecentFile[]>,
+  toggleStarred: (path: string) => ShellBinding.ToggleStarred(path),
+  removeRecent: (path: string) => ShellBinding.RemoveRecent(path),
 }
 
-export interface RunResult {
-  text: string
-  cancelled: boolean
-  turn_limit: boolean
+// ── Docs Service ───────────────────────────────────────────────────
+
+export const DocsService = {
+  openFile: (tabId: string, path: string) =>
+    DocsBinding.OpenFile(tabId, path) as any as Promise<OpenFileResult>,
+  newBlank: (tabId: string) =>
+    DocsBinding.NewBlank(tabId) as any as Promise<OpenFileResult>,
+  save: (tabId: string) =>
+    DocsBinding.Save(tabId) as any as Promise<SaveResult>,
+  saveAs: (tabId: string, path: string) =>
+    DocsBinding.SaveAs(tabId, path) as any as Promise<SaveResult>,
+  getState: (tabId: string) =>
+    DocsBinding.GetState(tabId) as any as Promise<DocState | null>,
+  isDirty: (tabId: string) =>
+    DocsBinding.IsDirty(tabId) as any as Promise<boolean>,
+  close: (tabId: string) =>
+    DocsBinding.Close(tabId),
+  updateParagraph: (tabId: string, index: number, text: string, bold: boolean, italic: boolean, align: string) =>
+    DocsBinding.UpdateParagraph(tabId, index, text, bold, italic, align),
+  insertParagraph: (tabId: string, index: number, text: string) =>
+    DocsBinding.InsertParagraph(tabId, index, text),
+  deleteParagraph: (tabId: string, index: number) =>
+    DocsBinding.DeleteParagraph(tabId, index),
+  findReplace: (tabId: string, search: string, replace: string, replaceAll: boolean) =>
+    DocsBinding.FindReplace(tabId, search, replace, replaceAll) as any as Promise<FindReplaceResult>,
+  find: (tabId: string, search: string) =>
+    DocsBinding.Find(tabId, search) as any as Promise<number[]>,
+  undo: (tabId: string) =>
+    DocsBinding.Undo(tabId),
+  redo: (tabId: string) =>
+    DocsBinding.Redo(tabId),
+  getParagraphs: (tabId: string) =>
+    DocsBinding.GetParagraphs(tabId) as any as Promise<ParaInfo[]>,
+  getHTMLPreview: (tabId: string) =>
+    DocsBinding.GetHTMLPreview(tabId) as any as Promise<string>,
+  exportHTML: (tabId: string, path: string) =>
+    DocsBinding.ExportHTML(tabId, path) as any as Promise<SaveResult>,
+  exportText: (tabId: string, path: string) =>
+    DocsBinding.ExportText(tabId, path) as any as Promise<SaveResult>,
+  startAutosave: (tabId: string, intervalSec: number) =>
+    DocsBinding.StartAutosave(tabId, intervalSec),
+}
+
+// ── Sheets Service ─────────────────────────────────────────────────
+
+export const SheetsService = {
+  openFile: (tabId: string, path: string) =>
+    SheetsBinding.OpenFile(tabId, path) as any as Promise<Record<string, unknown>>,
+  newWorkbook: (tabId: string) =>
+    SheetsBinding.NewWorkbook(tabId) as any as Promise<Record<string, unknown>>,
+  getState: (tabId: string) =>
+    SheetsBinding.GetState(tabId) as any as Promise<WorkbookState | null>,
+  getCellRange: (tabId: string, sheetName: string, startRow: number, startCol: number, rows: number, cols: number) =>
+    SheetsBinding.GetCellRange(tabId, sheetName, startRow, startCol, rows, cols) as any as Promise<CellData[][]>,
+  getAllRows: (tabId: string, sheetName: string) =>
+    SheetsBinding.GetAllRows(tabId, sheetName) as any as Promise<string[][]>,
+  setCellValue: (tabId: string, sheetName: string, cellRef: string, value: string) =>
+    SheetsBinding.SetCellValue(tabId, sheetName, cellRef, value) as any as Promise<SaveResult>,
+  setCellFormula: (tabId: string, sheetName: string, cellRef: string, formula: string) =>
+    SheetsBinding.SetCellFormula(tabId, sheetName, cellRef, formula) as any as Promise<SaveResult>,
+  addSheet: (tabId: string, name: string) =>
+    SheetsBinding.AddSheet(tabId, name) as any as Promise<SaveResult>,
+  deleteSheet: (tabId: string, name: string) =>
+    SheetsBinding.DeleteSheet(tabId, name) as any as Promise<SaveResult>,
+  renameSheet: (tabId: string, oldName: string, newName: string) =>
+    SheetsBinding.RenameSheet(tabId, oldName, newName) as any as Promise<SaveResult>,
+  insertRow: (tabId: string, sheetName: string, row: number) =>
+    SheetsBinding.InsertRow(tabId, sheetName, row) as any as Promise<SaveResult>,
+  insertCol: (tabId: string, sheetName: string, col: number) =>
+    SheetsBinding.InsertCol(tabId, sheetName, col) as any as Promise<SaveResult>,
+  deleteRow: (tabId: string, sheetName: string, row: number) =>
+    SheetsBinding.DeleteRow(tabId, sheetName, row) as any as Promise<SaveResult>,
+  mergeCells: (tabId: string, sheetName: string, startCell: string, endCell: string) =>
+    SheetsBinding.MergeCells(tabId, sheetName, startCell, endCell) as any as Promise<SaveResult>,
+  getMergedCells: (tabId: string, sheetName: string) =>
+    SheetsBinding.GetMergedCells(tabId, sheetName),
+  setColumnWidth: (tabId: string, sheetName: string, startCol: string, endCol: string, width: number) =>
+    SheetsBinding.SetColumnWidth(tabId, sheetName, startCol, endCol, width) as any as Promise<SaveResult>,
+  setRowHeight: (tabId: string, sheetName: string, row: number, height: number) =>
+    SheetsBinding.SetRowHeight(tabId, sheetName, row, height) as any as Promise<SaveResult>,
+  setAutoFilter: (tabId: string, sheetName: string, range: string) =>
+    SheetsBinding.SetAutoFilter(tabId, sheetName, range) as any as Promise<SaveResult>,
+  exportCSV: (tabId: string, sheetName: string, path: string) =>
+    SheetsBinding.ExportCSV(tabId, sheetName, path) as any as Promise<SaveResult>,
+  save: (tabId: string) =>
+    SheetsBinding.Save(tabId) as any as Promise<SaveResult>,
+  saveAs: (tabId: string, path: string) =>
+    SheetsBinding.SaveAs(tabId, path) as any as Promise<SaveResult>,
+  close: (tabId: string) =>
+    SheetsBinding.Close(tabId),
+}
+
+// ── Slides Service ─────────────────────────────────────────────────
+
+export const SlidesService = {
+  openFile: (tabId: string, path: string) =>
+    SlidesBinding.OpenFile(tabId, path) as any as Promise<SlideOpenResult>,
+  newBlank: (tabId: string) =>
+    SlidesBinding.NewBlank(tabId) as any as Promise<SlideOpenResult>,
+  getState: (tabId: string) =>
+    SlidesBinding.GetState(tabId) as any as Promise<DeckState | null>,
+  getSlides: (tabId: string) =>
+    SlidesBinding.GetSlides(tabId) as any as Promise<SlideInfo[]>,
+  addSlide: (tabId: string) =>
+    SlidesBinding.AddSlide(tabId) as any as Promise<SlideInfo>,
+  deleteSlide: (tabId: string, index: number) =>
+    SlidesBinding.DeleteSlide(tabId, index) as any as Promise<boolean>,
+  duplicateSlide: (tabId: string, index: number) =>
+    SlidesBinding.DuplicateSlide(tabId, index) as any as Promise<SlideInfo>,
+  moveSlide: (tabId: string, fromIdx: number, toIdx: number) =>
+    SlidesBinding.MoveSlide(tabId, fromIdx, toIdx) as any as Promise<boolean>,
+  updateElement: (tabId: string, slideIdx: number, elemId: string, text: string) =>
+    SlidesBinding.UpdateElement(tabId, slideIdx, elemId, text) as any as Promise<boolean>,
+  getSlideData: (tabId: string, index: number) =>
+    SlidesBinding.GetSlideData(tabId, index) as any as Promise<string>,
+  getSlideSVG: (tabId: string, index: number) =>
+    SlidesBinding.GetSlideSVG(tabId, index) as any as Promise<string>,
+  isDirty: (tabId: string) =>
+    SlidesBinding.IsDirty(tabId) as any as Promise<boolean>,
+  undo: (tabId: string) =>
+    SlidesBinding.Undo(tabId) as any as Promise<boolean>,
+  redo: (tabId: string) =>
+    SlidesBinding.Redo(tabId) as any as Promise<boolean>,
+  save: (tabId: string) =>
+    SlidesBinding.Save(tabId) as any as Promise<SaveResult>,
+  saveAs: (tabId: string, path: string) =>
+    SlidesBinding.SaveAs(tabId, path) as any as Promise<SaveResult>,
+  close: (tabId: string) =>
+    SlidesBinding.Close(tabId),
+  exportHTML: (tabId: string, path: string) =>
+    SlidesBinding.ExportHTML(tabId, path) as any as Promise<SaveResult>,
+}
+
+// ── PDF Service ────────────────────────────────────────────────────
+
+export const PdfService = {
+  openFile: (tabId: string, path: string) =>
+    PdfBinding.OpenFile(tabId, path),
+  getState: (tabId: string) =>
+    PdfBinding.GetState(tabId) as any as Promise<PDFState | null>,
+  extractText: (tabId: string) =>
+    PdfBinding.ExtractText(tabId) as any as Promise<string>,
+  extractPages: (tabId: string, pages: number[], outPath: string) =>
+    PdfBinding.ExtractPages(tabId, pages, outPath),
+  mergeFiles: (paths: string[], outPath: string) =>
+    PdfBinding.MergeFiles(paths, outPath),
+  addWatermark: (tabId: string, text: string, outPath: string) =>
+    PdfBinding.AddWatermark(tabId, text, outPath),
+  rotatePage: (tabId: string, page: number, degrees: number) =>
+    PdfBinding.RotatePages(tabId, degrees, [page]),
+  close: (tabId: string) =>
+    PdfBinding.Close(tabId),
+}
+
+// ── Markdown Service ───────────────────────────────────────────────
+
+export const MarkdownService = {
+  openFile: (tabId: string, path: string) =>
+    MarkdownBinding.OpenFile(tabId, path) as any as Promise<Record<string, unknown>>,
+  newBlank: (tabId: string) =>
+    MarkdownBinding.NewBlank(tabId) as any as Promise<Record<string, unknown>>,
+  updateContent: (tabId: string, content: string) =>
+    MarkdownBinding.UpdateContent(tabId, content),
+  save: (tabId: string) =>
+    MarkdownBinding.Save(tabId) as any as Promise<Record<string, unknown>>,
+  saveAs: (tabId: string, path: string) =>
+    MarkdownBinding.SaveAs(tabId, path) as any as Promise<Record<string, unknown>>,
+  close: (tabId: string) =>
+    MarkdownBinding.Close(tabId),
+}
+
+// ── AI Provider Service ────────────────────────────────────────────
+
+export const AIService = {
+  chat: (request: ChatRequest) =>
+    AIBinding.Chat(null as any, request as any) as any as Promise<ChatResponse>,
+  getSettings: () =>
+    AIBinding.GetSettings() as any as Promise<AISettings>,
+  updateSettings: (settings: AISettings) =>
+    AIBinding.UpdateSettings(settings as any),
+  listModels: () =>
+    AIBinding.ListModels(null as any) as any as Promise<string[]>,
+}
+
+// ── Wails Runtime ──────────────────────────────────────────────────
+
+export const WailsRuntime = {
+  openFileDialog: () => AppBinding.OpenFileDialog(),
+  saveFileDialog: () => AppBinding.SaveFileDialog(),
+  windowSetTitle: (title: string) => WindowSetTitle(title),
 }

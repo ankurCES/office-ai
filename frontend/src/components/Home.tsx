@@ -62,13 +62,13 @@ export function Home({ onOpenTab }: HomeProps) {
   const handleToggleStar = useCallback(async (path: string) => {
     await ShellService.toggleStarred(path)
     setRecentFiles((prev) =>
-      prev.map((f) => (f.path === path ? { ...f, starred: !f.starred } : f)),
+      prev.map((f) => (f.path === path ? { ...f, is_starred: !f.is_starred } : f)),
     )
   }, [])
 
   const filteredRecent = searchQuery
     ? recentFiles.filter((f) =>
-        f.title.toLowerCase().includes(searchQuery.toLowerCase()),
+        f.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : recentFiles
 
@@ -127,18 +127,18 @@ export function Home({ onOpenTab }: HomeProps) {
                   className="home-recent-open"
                   onClick={() => {
                     const kind = (EXT_TO_KIND[file.path.split('.').pop()?.toLowerCase() || ''] || 'docs') as TabInfo['kind']
-                    onOpenTab(kind, file.title, file.path)
+                    onOpenTab(kind, file.name, file.path)
                   }}
                 >
-                  <span className="home-recent-name">{file.title}</span>
+                  <span className="home-recent-name">{file.name}</span>
                   <span className="home-recent-path">{file.path}</span>
                 </button>
                 <button
                   className="home-recent-star"
                   onClick={() => handleToggleStar(file.path)}
-                  title={file.starred ? 'Unstar' : 'Star'}
+                  title={file.is_starred ? 'Unstar' : 'Star'}
                 >
-                  {file.starred ? '⭐' : '☆'}
+                  {file.is_starred ? '⭐' : '☆'}
                 </button>
                 <button
                   className="home-recent-remove"

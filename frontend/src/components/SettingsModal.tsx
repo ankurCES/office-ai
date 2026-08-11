@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ShellService, AIProviderService, I18nService } from '../services/wails-bridge'
+import { ShellService, AIService } from '../services/wails-bridge'
 import './SettingsModal.css'
 
 interface SettingsModalProps {
@@ -14,8 +14,6 @@ interface Settings {
   aiProvider: string
   apiKey: string
   model: string
-  autoSave: boolean
-  autoSaveInterval: number
 }
 
 const AI_PROVIDERS = [
@@ -49,27 +47,21 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     aiProvider: 'anthropic',
     apiKey: '',
     model: 'claude-sonnet-4-20250514',
-    autoSave: true,
-    autoSaveInterval: 30,
   })
 
-  // Load settings from Go backend on mount
   useEffect(() => {
     const load = async () => {
       try {
-        const [appSettings, aiSettings, lang] = await Promise.all([
+        const [appSettings, aiSettings] = await Promise.all([
           ShellService.getSettings(),
-          AIProviderService.getSettings(),
-          I18nService.getLang(),
+          AIService.getSettings(),
         ])
         setSettings({
-          theme: (appSettings.theme as Theme) || 'system',
-          language: lang || 'en',
-          aiProvider: aiSettings.provider || 'anthropic',
-          apiKey: aiSettings.api_key || '',
-          model: aiSettings.model || 'claude-sonnet-4-20250514',
-          autoSave: appSettings.auto_save ?? true,
-          autoSaveInterval: appSettings.auto_save_interval || 30,
+          theme: ((appSettings as any)?.theme as Theme) || 'system',
+          language: (appSettings as any)?.language || 'en',
+          aiProvider: (aiSettings as any)?.provider || 'anthropic',
+          apiKey: (aiSettings as any)?.api_key || '',
+          model: (aiSettings as any)?.model || 'claude-sonnet-4-20250514',
         })
       } catch {
         // Use defaults
@@ -83,24 +75,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   }
 
   const handleSave = async () => {
-    // Persist to Go backend
     try {
       await Promise.all([
         ShellService.updateSetting('theme', settings.theme),
-        ShellService.updateSetting('auto_save', settings.autoSave),
-        ShellService.updateSetting('auto_save_interval', settings.autoSaveInterval),
-        AIProviderService.updateSettings({
+        ShellService.updateSetting('language', settings.language),
+        AIService.updateSettings({
           provider: settings.aiProvider,
           api_key: settings.apiKey,
           model: settings.model,
         }),
-        I18nService.setLang(settings.language),
       ])
     } catch {
-      // Settings save failed — still apply theme locally
+      // Settings save failed
     }
-
-    // Apply theme
     if (settings.theme !== 'system') {
       document.documentElement.setAttribute('data-theme', settings.theme)
     } else {
@@ -122,21 +109,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             <button
               className={`settings-tab ${activeTab === 'general' ? 'active' : ''}`}
               onClick={() => setActiveTab('general')}
-            >
-              General
-            </button>
+            >General</button>
             <button
               className={`settings-tab ${activeTab === 'ai' ? 'active' : ''}`}
               onClick={() => setActiveTab('ai')}
-            >
-              AI Provider
-            </button>
+            >AI Provider</button>
             <button
               className={`settings-tab ${activeTab === 'about' ? 'active' : ''}`}
               onClick={() => setActiveTab('about')}
-            >
-              About
-            </button>
+            >About</button>
           </div>
 
           <div className="settings-content">
@@ -154,7 +135,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     <option value="dark">Dark</option>
                   </select>
                 </label>
-
                 <label className="settings-field">
                   <span className="settings-label">Language</span>
                   <select
@@ -166,20 +146,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                       <option key={lang.id} value={lang.id}>{lang.label}</option>
                     ))}
                   </select>
-                </label>
-
-                <label className="settings-field">
-                  <span className="settings-label">Auto-save</span>
-                  <div className="settings-row">
-                    <input
-                      type="checkbox"
-                      checked={settings.autoSave}
-                      onChange={(e) => update('autoSave', e.target.checked)}
-                    />
-                    <span className="settings-hint">
-                      Every {settings.autoSaveInterval}s
-                    </span>
-                  </div>
                 </label>
               </div>
             )}
@@ -198,7 +164,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     ))}
                   </select>
                 </label>
-
                 <label className="settings-field">
                   <span className="settings-label">API Key</span>
                   <input
@@ -206,10 +171,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                     value={settings.apiKey}
                     onChange={(e) => update('apiKey', e.target.value)}
                     className="settings-input"
-                    placeholder="Enter your API key..."
+                    placeholder="sk-..."
                   />
                 </label>
-
                 <label className="settings-field">
                   <span className="settings-label">Model</span>
                   <input
@@ -228,21 +192,15 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 <h3>Office AI</h3>
                 <p>Version 0.1.0</p>
                 <p>A modern office suite with AI assistance, built with Go + Wails.</p>
-                <p className="settings-credits">
-                  Powered by Wails, React, and Anthropic Claude.
-                </p>
+                <p className="settings-credits">Powered by Wails, React, and Anthropic Claude.</p>
               </div>
             )}
           </div>
         </div>
 
         <div className="settings-footer">
-          <button className="settings-btn settings-btn-cancel" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="settings-btn settings-btn-save" onClick={handleSave}>
-            Save
-          </button>
+          <button className="settings-btn settings-btn-cancel" onClick={onClose}>Cancel</button>
+          <button className="settings-btn settings-btn-save" onClick={handleSave}>Save</button>
         </div>
       </div>
     </div>

@@ -21,11 +21,10 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
     const init = async () => {
       try {
         const result = await PdfService.openFile(tabId, filePath)
-        if (result?.error) {
-          setError(result.error as string)
+        if ((result as any)?.error) {
+          setError((result as any).error)
           return
         }
-        // Fetch full state
         const state = await PdfService.getState(tabId)
         if (state) setPdfState(state)
       } catch (err) {
@@ -46,21 +45,21 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
     }
   }, [tabId])
 
-  const handleSplitPages = useCallback(async () => {
+  const handleExtractPages = useCallback(async () => {
     try {
-      const dir = await WailsRuntime.saveFileDialog()
-      if (!dir) return
-      const result = await PdfService.splitFile(tabId, dir)
-      if (result?.error) setError(result.error)
+      const outPath = await WailsRuntime.saveFileDialog()
+      if (!outPath) return
+      const result = await PdfService.extractPages(tabId, [currentPage], outPath)
+      if ((result as any)?.error) setError((result as any).error)
     } catch (err) {
-      setError(`Split failed: ${err}`)
+      setError(`Extract pages failed: ${err}`)
     }
-  }, [tabId])
+  }, [tabId, currentPage])
 
   const handleRotate = useCallback(async (degrees: number) => {
     try {
-      const result = await PdfService.rotatePages(tabId, degrees, [currentPage])
-      if (result?.success) {
+      const result = await PdfService.rotatePage(tabId, currentPage, degrees)
+      if ((result as any)?.success) {
         const state = await PdfService.getState(tabId)
         if (state) setPdfState(state)
       }
@@ -69,26 +68,6 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
     }
   }, [tabId, currentPage])
 
-  const handleOptimize = useCallback(async () => {
-    try {
-      const path = await WailsRuntime.saveFileDialog()
-      if (!path) return
-      const result = await PdfService.optimize(tabId, path)
-      if (result?.error) setError(result.error)
-    } catch (err) {
-      setError(`Optimize failed: ${err}`)
-    }
-  }, [tabId])
-
-  const handleSave = useCallback(async () => {
-    try {
-      const result = await PdfService.save(tabId)
-      if (result?.error) setError(result.error)
-    } catch (err) {
-      setError(`Save failed: ${err}`)
-    }
-  }, [tabId])
-
   const handleMerge = useCallback(async () => {
     try {
       const path = await WailsRuntime.openFileDialog()
@@ -96,7 +75,7 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
       const outputPath = await WailsRuntime.saveFileDialog()
       if (!outputPath) return
       const result = await PdfService.mergeFiles([filePath || '', path], outputPath)
-      if (result?.error) setError(result.error)
+      if ((result as any)?.error) setError((result as any).error)
     } catch (err) {
       setError(`Merge failed: ${err}`)
     }
@@ -109,7 +88,7 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
       const outputPath = await WailsRuntime.saveFileDialog()
       if (!outputPath) return
       const result = await PdfService.addWatermark(tabId, text, outputPath)
-      if (result?.error) setError(result.error)
+      if ((result as any)?.error) setError((result as any).error)
     } catch (err) {
       setError(`Watermark failed: ${err}`)
     }
@@ -118,12 +97,6 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
   const pageCount = pdfState?.page_count || 0
 
   const toolbarGroups = [
-    {
-      id: 'file',
-      actions: [
-        { id: 'save', label: 'Save', icon: '💾', onClick: handleSave },
-      ],
-    },
     {
       id: 'navigate',
       actions: [
@@ -135,12 +108,11 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
       id: 'tools',
       actions: [
         { id: 'extract', label: 'Extract Text', icon: '📝', onClick: handleExtractText },
-        { id: 'split', label: 'Split', icon: '✂️', onClick: handleSplitPages },
+        { id: 'extract-pages', label: 'Extract Pages', icon: '📑', onClick: handleExtractPages },
         { id: 'merge', label: 'Merge', icon: '🔗', onClick: handleMerge },
         { id: 'rotate-cw', label: 'Rotate CW', icon: '🔄', onClick: () => handleRotate(90) },
         { id: 'rotate-ccw', label: 'Rotate CCW', icon: '🔃', onClick: () => handleRotate(270) },
         { id: 'watermark', label: 'Watermark', icon: '💧', onClick: handleWatermark },
-        { id: 'optimize', label: 'Optimize', icon: '⚡', onClick: handleOptimize },
       ],
     },
   ]
@@ -174,9 +146,11 @@ export function PdfViewer({ tabId, filePath }: PdfViewerProps) {
                     <div className="pdf-page-label">Page {currentPage} of {pageCount}</div>
                     <div className="pdf-file-info">
                       {pdfState.title && <div>Title: {pdfState.title}</div>}
-                      {pdfState.metadata && Object.entries(pdfState.metadata).map(([k, v]) => (
-                        <div key={k} className="pdf-meta-item">{k}: {v}</div>
-                      ))}
+                      {pdfState.meta && (
+                        <div className="pdf-meta-item">
+                          Author: {(pdfState.meta as any)?.author || 'Unknown'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

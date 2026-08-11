@@ -118,7 +118,7 @@ export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
 
   const handleElementClick = useCallback((elem: SlideElement) => {
     setSelectedElement(elem.id)
-    setEditText(elem.text)
+    setEditText(elem.text || '')
   }, [])
 
   const handleElementUpdate = useCallback(async () => {
@@ -193,7 +193,7 @@ export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
                     position: 'absolute',
                     left: `${(elem.x / 9144000) * 100}%`,
                     top: `${(elem.y / 6858000) * 100}%`,
-                    width: elem.width ? `${(elem.width / 9144000) * 100}%` : 'auto',
+                    width: elem.w ? `${(elem.w / 9144000) * 100}%` : 'auto',
                   }}
                   onClick={() => handleElementClick(elem)}
                   onDoubleClick={() => handleElementClick(elem)}

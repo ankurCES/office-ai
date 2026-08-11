@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { AgentService } from '../services/wails-bridge'
+import { AIService } from '../services/wails-bridge'
+import type { AIMessage } from '../services/wails-bridge'
 import './AiPanel.css'
 
 interface AiPanelProps {
@@ -20,27 +21,12 @@ export function AiPanel({ tabId, tabKind, onClose }: AiPanelProps) {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Keep conversation history for multi-turn chat
+  const historyRef = useRef<AIMessage[]>([])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
-
-  // Load existing chat history from Go backend
-  useEffect(() => {
-    AgentService.getHistory()
-      .then((history) => {
-        if (history?.length) {
-          setMessages(
-            history.map((m) => ({
-              role: m.role as 'user' | 'assistant',
-              text: m.text || '',
-              timestamp: Date.now(),
-            })),
-          )
-        }
-      })
-      .catch(() => {})
-  }, [tabId])
 
   const sendMessage = useCallback(async () => {
     const text = input.trim()
@@ -51,32 +37,35 @@ export function AiPanel({ tabId, tabKind, onClose }: AiPanelProps) {
     setInput('')
     setIsLoading(true)
 
+    // Build message history for the AI
+    historyRef.current.push({ role: 'user', text })
+
     try {
-      // Call Go agent loop with the skill matching the editor kind
-      const result = await AgentService.run(text, { skill: tabKind })
-      const assistantMsg: ChatMessage = {
-        role: 'assistant',
-        text: result?.text || `Processed your request for ${tabKind}.`,
-        timestamp: Date.now(),
-      }
-      setMessages((prev) => [...prev, assistantMsg])
-    } catch (err) {
+      const result = await AIService.chat({
+        messages: historyRef.current,
+        system: `You are an AI assistant embedded in an office suite. The user is working on a ${tabKind} document. Help them with their request.`,
+        max_tokens: 2048,
+      })
+      const responseText = result?.text || `Processed your request for ${tabKind}.`
+      historyRef.current.push({ role: 'assistant', text: responseText })
       setMessages((prev) => [
         ...prev,
-        {
-          role: 'assistant',
-          text: `Error: ${err instanceof Error ? err.message : err}`,
-          timestamp: Date.now(),
-        },
+        { role: 'assistant', text: responseText, timestamp: Date.now() },
+      ])
+    } catch (err) {
+      const errText = `Error: ${err instanceof Error ? err.message : err}`
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', text: errText, timestamp: Date.now() },
       ])
     } finally {
       setIsLoading(false)
     }
   }, [input, isLoading, tabKind])
 
-  const handleClear = useCallback(async () => {
+  const handleClear = useCallback(() => {
     setMessages([])
-    try { await AgentService.clearHistory() } catch {}
+    historyRef.current = []
   }, [])
 
   const handleKeyDown = useCallback(

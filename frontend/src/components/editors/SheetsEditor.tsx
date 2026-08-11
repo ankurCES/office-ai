@@ -99,6 +99,8 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
     setCells((prev) => ({
       ...prev,
       [activeCell]: {
+        row: 0,
+        col: 0,
         value: isFormula ? '...' : editValue,
         formula: isFormula ? editValue : '',
         type: isFormula ? 'formula' : 'string',
