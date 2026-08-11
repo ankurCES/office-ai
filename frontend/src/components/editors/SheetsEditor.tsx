@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { SheetsService } from '../../services/wails-bridge'
+import type { CellData } from '../../services/wails-bridge'
 import { EditorToolbar } from './EditorToolbar'
 import './SheetsEditor.css'
 
@@ -10,13 +11,8 @@ interface SheetsEditorProps {
   onDirtyChange: (dirty: boolean) => void
 }
 
-interface CellData {
-  value: string
-  formula?: string
-}
-
-const INITIAL_ROWS = 100
-const INITIAL_COLS = 26
+const VISIBLE_ROWS = 50
+const VISIBLE_COLS = 26
 
 function colLabel(index: number): string {
   let label = ''
@@ -28,15 +24,39 @@ function colLabel(index: number): string {
   return label
 }
 
+function cellRef(row: number, col: number): string {
+  return `${colLabel(col)}${row + 1}`
+}
+
 export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: SheetsEditorProps) {
   const [cells, setCells] = useState<Record<string, CellData>>({})
   const [activeCell, setActiveCell] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
-  const [sheetNames, setSheetNames] = useState(['Sheet1'])
-  const [activeSheet, setActiveSheet] = useState(0)
+  const [sheetNames, setSheetNames] = useState<string[]>(['Sheet1'])
+  const [activeSheet, setActiveSheet] = useState('Sheet1')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Open file or create blank via Go backend
+  // Load cells from Go backend for the active sheet
+  const loadCells = useCallback(async (sheetName: string) => {
+    try {
+      const range = await SheetsService.getCellRange(tabId, sheetName, 0, 0, VISIBLE_ROWS, VISIBLE_COLS)
+      if (range?.length) {
+        const loaded: Record<string, CellData> = {}
+        range.forEach((row, r) => {
+          row?.forEach((cell, c) => {
+            if (cell && (cell.value || cell.formula)) {
+              loaded[cellRef(r, c)] = cell
+            }
+          })
+        })
+        setCells(loaded)
+      }
+    } catch {
+      // Fallback: keep local state
+    }
+  }, [tabId])
+
+  // Open file or create blank
   useEffect(() => {
     const init = async () => {
       try {
@@ -44,21 +64,18 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
         if (filePath) {
           result = await SheetsService.openFile(tabId, filePath)
         } else {
-          result = await SheetsService.newBlank(tabId)
+          result = await SheetsService.newWorkbook(tabId)
         }
         if (result?.title) onTitleChange(result.title as string)
         else onTitleChange(filePath?.split(/[/\\]/).pop() || 'Untitled Spreadsheet')
-        if (result?.sheet_names) setSheetNames(result.sheet_names as string[])
 
-        // Load visible cell range
-        const range = await SheetsService.getCellRange(tabId, 0, 0, 49, 25)
-        if (range?.length) {
-          const loaded: Record<string, CellData> = {}
-          for (const cv of range) {
-            const key = `${colLabel(cv.col)}${cv.row + 1}`
-            loaded[key] = { value: cv.value, formula: cv.formula }
-          }
-          setCells(loaded)
+        const sheets = result?.sheet_names as string[] | undefined
+        if (sheets?.length) {
+          setSheetNames(sheets)
+          setActiveSheet(sheets[0])
+          await loadCells(sheets[0])
+        } else {
+          await loadCells('Sheet1')
         }
       } catch {
         onTitleChange(filePath?.split(/[/\\]/).pop() || 'Untitled Spreadsheet')
@@ -66,14 +83,12 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
     }
     init()
     return () => { SheetsService.close(tabId) }
-  }, [filePath, tabId, onTitleChange])
-
-  const cellKey = (row: number, col: number) => `${colLabel(col)}${row + 1}`
+  }, [filePath, tabId, onTitleChange, loadCells])
 
   const handleCellClick = useCallback((row: number, col: number) => {
-    const key = cellKey(row, col)
-    setActiveCell(key)
-    const cell = cells[key]
+    const ref = cellRef(row, col)
+    setActiveCell(ref)
+    const cell = cells[ref]
     setEditValue(cell?.formula || cell?.value || '')
     inputRef.current?.focus()
   }, [cells])
@@ -85,35 +100,26 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
       ...prev,
       [activeCell]: {
         value: isFormula ? '...' : editValue,
-        formula: isFormula ? editValue : undefined,
+        formula: isFormula ? editValue : '',
+        type: isFormula ? 'formula' : 'string',
       },
     }))
     onDirtyChange(true)
 
-    // Persist to Go backend
-    const match = activeCell.match(/^([A-Z]+)(\d+)$/)
-    if (match) {
-      const colIdx = match[1].split('').reduce((acc, ch) => acc * 26 + ch.charCodeAt(0) - 64, 0) - 1
-      const rowIdx = parseInt(match[2]) - 1
-      try {
-        await SheetsService.setCellValue(tabId, rowIdx, colIdx, editValue)
-        if (isFormula) {
-          await SheetsService.recalc(tabId)
-          // Refresh cell range after recalc
-          const range = await SheetsService.getCellRange(tabId, 0, 0, 49, 25)
-          if (range?.length) {
-            const loaded: Record<string, CellData> = {}
-            for (const cv of range) {
-              loaded[`${colLabel(cv.col)}${cv.row + 1}`] = { value: cv.value, formula: cv.formula }
-            }
-            setCells(loaded)
-          }
-        }
-      } catch {
-        // Fallback: keep local state
+    try {
+      if (isFormula) {
+        await SheetsService.setCellFormula(tabId, activeSheet, activeCell, editValue)
+      } else {
+        await SheetsService.setCellValue(tabId, activeSheet, activeCell, editValue)
       }
+      // Refresh cells after formula evaluation
+      if (isFormula) {
+        await loadCells(activeSheet)
+      }
+    } catch {
+      // Keep local state on error
     }
-  }, [activeCell, editValue, onDirtyChange, tabId])
+  }, [activeCell, editValue, onDirtyChange, tabId, activeSheet, loadCells])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -122,9 +128,7 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
         if (activeCell) {
           const match = activeCell.match(/^([A-Z]+)(\d+)$/)
           if (match) {
-            const col = match[1]
-            const row = parseInt(match[2])
-            const nextKey = `${col}${row + 1}`
+            const nextKey = `${match[1]}${parseInt(match[2]) + 1}`
             setActiveCell(nextKey)
             setEditValue(cells[nextKey]?.formula || cells[nextKey]?.value || '')
           }
@@ -148,10 +152,61 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
     }
   }, [tabId, onDirtyChange])
 
+  const handleSwitchSheet = useCallback(async (name: string) => {
+    setActiveSheet(name)
+    setActiveCell(null)
+    setEditValue('')
+    await loadCells(name)
+  }, [loadCells])
+
+  const handleAddSheet = useCallback(async () => {
+    const name = `Sheet${sheetNames.length + 1}`
+    try {
+      const result = await SheetsService.addSheet(tabId, name)
+      if (result?.success) {
+        setSheetNames(prev => [...prev, name])
+        handleSwitchSheet(name)
+        onDirtyChange(true)
+      }
+    } catch {
+      // Fallback: add locally
+      setSheetNames(prev => [...prev, name])
+    }
+  }, [tabId, sheetNames.length, handleSwitchSheet, onDirtyChange])
+
+  const handleInsertRow = useCallback(async () => {
+    if (!activeCell) return
+    const match = activeCell.match(/^[A-Z]+(\d+)$/)
+    if (match) {
+      const row = parseInt(match[1])
+      await SheetsService.insertRow(tabId, activeSheet, row)
+      await loadCells(activeSheet)
+      onDirtyChange(true)
+    }
+  }, [activeCell, tabId, activeSheet, loadCells, onDirtyChange])
+
+  const handleInsertCol = useCallback(async () => {
+    if (!activeCell) return
+    const match = activeCell.match(/^([A-Z]+)/)
+    if (match) {
+      const col = match[1].split('').reduce((acc, ch) => acc * 26 + ch.charCodeAt(0) - 64, 0) - 1
+      await SheetsService.insertCol(tabId, activeSheet, col)
+      await loadCells(activeSheet)
+      onDirtyChange(true)
+    }
+  }, [activeCell, tabId, activeSheet, loadCells, onDirtyChange])
+
   const toolbarGroups = [
     {
       id: 'file',
       actions: [{ id: 'save', label: 'Save', icon: '💾', onClick: handleSave }],
+    },
+    {
+      id: 'edit',
+      actions: [
+        { id: 'insert-row', label: 'Insert Row', icon: '➕↔', onClick: handleInsertRow },
+        { id: 'insert-col', label: 'Insert Column', icon: '➕↕', onClick: handleInsertCol },
+      ],
     },
     {
       id: 'format',
@@ -190,25 +245,25 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
           <thead>
             <tr>
               <th className="sheets-row-header" />
-              {Array.from({ length: INITIAL_COLS }, (_, c) => (
+              {Array.from({ length: VISIBLE_COLS }, (_, c) => (
                 <th key={c} className="sheets-col-header">{colLabel(c)}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {Array.from({ length: INITIAL_ROWS }, (_, r) => (
+            {Array.from({ length: VISIBLE_ROWS }, (_, r) => (
               <tr key={r}>
                 <td className="sheets-row-header">{r + 1}</td>
-                {Array.from({ length: INITIAL_COLS }, (_, c) => {
-                  const key = cellKey(r, c)
-                  const isActive = activeCell === key
+                {Array.from({ length: VISIBLE_COLS }, (_, c) => {
+                  const ref = cellRef(r, c)
+                  const isActive = activeCell === ref
                   return (
                     <td
                       key={c}
                       className={`sheets-cell ${isActive ? 'active' : ''}`}
                       onClick={() => handleCellClick(r, c)}
                     >
-                      {cells[key]?.value || ''}
+                      {cells[ref]?.value || ''}
                     </td>
                   )
                 })}
@@ -218,16 +273,16 @@ export function SheetsEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
         </table>
       </div>
       <div className="sheets-sheet-tabs">
-        {sheetNames.map((name, i) => (
+        {sheetNames.map((name) => (
           <button
-            key={i}
-            className={`sheets-sheet-tab ${i === activeSheet ? 'active' : ''}`}
-            onClick={() => setActiveSheet(i)}
+            key={name}
+            className={`sheets-sheet-tab ${name === activeSheet ? 'active' : ''}`}
+            onClick={() => handleSwitchSheet(name)}
           >
             {name}
           </button>
         ))}
-        <button className="sheets-add-sheet" title="Add sheet">+</button>
+        <button className="sheets-add-sheet" title="Add sheet" onClick={handleAddSheet}>+</button>
       </div>
     </div>
   )

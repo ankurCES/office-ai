@@ -68,7 +68,7 @@ export function Home({ onOpenTab }: HomeProps) {
 
   const filteredRecent = searchQuery
     ? recentFiles.filter((f) =>
-        f.name.toLowerCase().includes(searchQuery.toLowerCase()),
+        f.title.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : recentFiles
 
@@ -127,10 +127,10 @@ export function Home({ onOpenTab }: HomeProps) {
                   className="home-recent-open"
                   onClick={() => {
                     const kind = (EXT_TO_KIND[file.path.split('.').pop()?.toLowerCase() || ''] || 'docs') as TabInfo['kind']
-                    onOpenTab(kind, file.name, file.path)
+                    onOpenTab(kind, file.title, file.path)
                   }}
                 >
-                  <span className="home-recent-name">{file.name}</span>
+                  <span className="home-recent-name">{file.title}</span>
                   <span className="home-recent-path">{file.path}</span>
                 </button>
                 <button

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { SlidesService } from '../../services/wails-bridge'
+import type { SlideInfo, SlideElement } from '../../services/wails-bridge'
 import { EditorToolbar } from './EditorToolbar'
 import './SlidesEditor.css'
 
@@ -10,95 +11,91 @@ interface SlidesEditorProps {
   onDirtyChange: (dirty: boolean) => void
 }
 
-interface Slide {
-  id: string
-  elements: SlideElement[]
-}
-
-interface SlideElement {
-  id: string
-  kind: 'text' | 'image' | 'shape'
-  x: number
-  y: number
-  w: number
-  h: number
-  text?: string
-  src?: string
-}
-
-let slideCounter = 0
-
-function createBlankSlide(): Slide {
-  slideCounter++
-  return {
-    id: `slide-${slideCounter}`,
-    elements: [
-      {
-        id: `el-${slideCounter}-title`,
-        kind: 'text',
-        x: 60, y: 40, w: 840, h: 80,
-        text: 'Click to add title',
-      },
-      {
-        id: `el-${slideCounter}-body`,
-        kind: 'text',
-        x: 60, y: 160, w: 840, h: 360,
-        text: 'Click to add content',
-      },
-    ],
-  }
-}
-
 export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: SlidesEditorProps) {
-  const [slides, setSlides] = useState<Slide[]>([createBlankSlide()])
+  const [slides, setSlides] = useState<SlideInfo[]>([])
   const [currentSlide, setCurrentSlide] = useState(0)
   const [selectedElement, setSelectedElement] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
 
-  // Open file or create blank via Go backend
   useEffect(() => {
     const init = async () => {
       try {
-        let result: Record<string, unknown>
+        let result
         if (filePath) {
           result = await SlidesService.openFile(tabId, filePath)
         } else {
           result = await SlidesService.newBlank(tabId)
         }
-        if (result?.title) onTitleChange(result.title as string)
-        else onTitleChange(filePath?.split(/[/\\]/).pop() || 'Untitled Presentation')
-
-        // Load slides from result if available
-        if (result?.slides && Array.isArray(result.slides)) {
-          setSlides(result.slides as Slide[])
-        }
+        if (result?.slides) setSlides(result.slides)
+        onTitleChange(result?.title || filePath?.split(/[/\\]/).pop() || 'Untitled Presentation')
       } catch {
         onTitleChange(filePath?.split(/[/\\]/).pop() || 'Untitled Presentation')
+        // Start with one blank slide
+        setSlides([{ index: 0, title: 'Slide 1', elements: [] }])
       }
     }
     init()
     return () => { SlidesService.close(tabId) }
   }, [filePath, tabId, onTitleChange])
 
-  const addSlide = useCallback(async () => {
-    const newSlide = createBlankSlide()
-    setSlides((prev) => [...prev, newSlide])
-    setCurrentSlide(slides.length)
-    onDirtyChange(true)
+  const refreshSlides = useCallback(async () => {
     try {
-      await SlidesService.addSlide(tabId, currentSlide, 'blank')
-    } catch { /* fallback: local only */ }
-  }, [slides.length, currentSlide, tabId, onDirtyChange])
+      const s = await SlidesService.getSlides(tabId)
+      if (s?.length) setSlides(s)
+    } catch {}
+  }, [tabId])
 
-  const deleteSlide = useCallback(async () => {
-    if (slides.length <= 1) return
-    const idx = currentSlide
-    setSlides((prev) => prev.filter((_, i) => i !== idx))
-    setCurrentSlide(Math.max(0, idx - 1))
-    onDirtyChange(true)
+  const handleAddSlide = useCallback(async () => {
     try {
-      await SlidesService.deleteSlide(tabId, idx)
-    } catch { /* fallback: local only */ }
-  }, [slides.length, currentSlide, tabId, onDirtyChange])
+      const newSlide = await SlidesService.addSlide(tabId)
+      if (newSlide) {
+        await refreshSlides()
+        setCurrentSlide(slides.length)
+        onDirtyChange(true)
+      }
+    } catch {
+      // Fallback: add locally
+      setSlides(prev => [...prev, {
+        index: prev.length,
+        title: `Slide ${prev.length + 1}`,
+        elements: [],
+      }])
+      setCurrentSlide(slides.length)
+    }
+  }, [tabId, slides.length, onDirtyChange, refreshSlides])
+
+  const handleDeleteSlide = useCallback(async () => {
+    if (slides.length <= 1) return
+    try {
+      await SlidesService.deleteSlide(tabId, currentSlide)
+      await refreshSlides()
+      setCurrentSlide(Math.max(0, currentSlide - 1))
+      onDirtyChange(true)
+    } catch {
+      setSlides(prev => prev.filter((_, i) => i !== currentSlide))
+      setCurrentSlide(Math.max(0, currentSlide - 1))
+    }
+  }, [tabId, currentSlide, slides.length, onDirtyChange, refreshSlides])
+
+  const handleDuplicateSlide = useCallback(async () => {
+    try {
+      await SlidesService.duplicateSlide(tabId, currentSlide)
+      await refreshSlides()
+      setCurrentSlide(currentSlide + 1)
+      onDirtyChange(true)
+    } catch {}
+  }, [tabId, currentSlide, onDirtyChange, refreshSlides])
+
+  const handleMoveSlide = useCallback(async (direction: 'up' | 'down') => {
+    const target = direction === 'up' ? currentSlide - 1 : currentSlide + 1
+    if (target < 0 || target >= slides.length) return
+    try {
+      await SlidesService.moveSlide(tabId, currentSlide, target)
+      await refreshSlides()
+      setCurrentSlide(target)
+      onDirtyChange(true)
+    } catch {}
+  }, [tabId, currentSlide, slides.length, onDirtyChange, refreshSlides])
 
   const handleSave = useCallback(async () => {
     try {
@@ -109,7 +106,33 @@ export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
     }
   }, [tabId, onDirtyChange])
 
-  const slide = slides[currentSlide]
+  const handleUndo = useCallback(async () => {
+    await SlidesService.undo(tabId)
+    await refreshSlides()
+  }, [tabId, refreshSlides])
+
+  const handleRedo = useCallback(async () => {
+    await SlidesService.redo(tabId)
+    await refreshSlides()
+  }, [tabId, refreshSlides])
+
+  const handleElementClick = useCallback((elem: SlideElement) => {
+    setSelectedElement(elem.id)
+    setEditText(elem.text)
+  }, [])
+
+  const handleElementUpdate = useCallback(async () => {
+    if (!selectedElement) return
+    try {
+      await SlidesService.updateElement(tabId, currentSlide, selectedElement, editText)
+      await refreshSlides()
+      onDirtyChange(true)
+    } catch {}
+    setSelectedElement(null)
+    setEditText('')
+  }, [tabId, currentSlide, selectedElement, editText, onDirtyChange, refreshSlides])
+
+  const currentSlideData = slides[currentSlide]
 
   const toolbarGroups = [
     {
@@ -119,29 +142,18 @@ export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
     {
       id: 'slides',
       actions: [
-        { id: 'add', label: 'Add Slide', icon: '➕', onClick: addSlide },
-        { id: 'delete', label: 'Delete Slide', icon: '🗑', onClick: deleteSlide, disabled: slides.length <= 1 },
+        { id: 'add', label: 'Add Slide', icon: '➕', onClick: handleAddSlide },
+        { id: 'duplicate', label: 'Duplicate', icon: '📋', onClick: handleDuplicateSlide },
+        { id: 'delete', label: 'Delete', icon: '🗑️', onClick: handleDeleteSlide, disabled: slides.length <= 1 },
+        { id: 'move-up', label: '↑', icon: '↑', onClick: () => handleMoveSlide('up'), disabled: currentSlide === 0 },
+        { id: 'move-down', label: '↓', icon: '↓', onClick: () => handleMoveSlide('down'), disabled: currentSlide >= slides.length - 1 },
       ],
     },
     {
-      id: 'insert',
+      id: 'edit',
       actions: [
-        {
-          id: 'text',
-          label: 'Add Text',
-          icon: 'T',
-          onClick: async () => {
-            const elem: SlideElement = {
-              id: `el-${Date.now()}`, kind: 'text',
-              x: 100, y: 200, w: 300, h: 100, text: 'New text box',
-            }
-            setSlides((prev) => prev.map((s, i) =>
-              i === currentSlide ? { ...s, elements: [...s.elements, elem] } : s,
-            ))
-            onDirtyChange(true)
-            try { await SlidesService.addElement(tabId, currentSlide, elem) } catch {}
-          },
-        },
+        { id: 'undo', label: 'Undo', icon: '↩', onClick: handleUndo },
+        { id: 'redo', label: 'Redo', icon: '↪', onClick: handleRedo },
       ],
     },
   ]
@@ -149,65 +161,71 @@ export function SlidesEditor({ tabId, filePath, onTitleChange, onDirtyChange }: 
   return (
     <div className="slides-editor">
       <EditorToolbar groups={toolbarGroups} title="Presentation" />
-      <div className="slides-body">
+      <div className="slides-workspace">
         <div className="slides-sidebar">
-          {slides.map((s, i) => (
+          {slides.map((slide, i) => (
             <div
-              key={s.id}
+              key={i}
               className={`slides-thumb ${i === currentSlide ? 'active' : ''}`}
               onClick={() => { setCurrentSlide(i); setSelectedElement(null) }}
             >
-              <span className="slides-thumb-num">{i + 1}</span>
+              <div className="slides-thumb-number">{i + 1}</div>
               <div className="slides-thumb-preview">
-                {s.elements.filter((el) => el.kind === 'text').map((el) => (
-                  <div key={el.id} className="slides-thumb-text">
-                    {el.text?.substring(0, 20)}
-                  </div>
+                <div className="slides-thumb-title">{slide.title || `Slide ${i + 1}`}</div>
+                {slide.elements?.slice(0, 2).map((el, j) => (
+                  <div key={j} className="slides-thumb-element">{el.text?.substring(0, 30)}</div>
                 ))}
               </div>
             </div>
           ))}
         </div>
         <div className="slides-canvas-area">
-          <div
-            className="slides-canvas"
-            onClick={() => setSelectedElement(null)}
-          >
-            {slide?.elements.map((el) => (
-              <div
-                key={el.id}
-                className={`slides-element ${selectedElement === el.id ? 'selected' : ''}`}
-                style={{
-                  left: `${(el.x / 960) * 100}%`,
-                  top: `${(el.y / 540) * 100}%`,
-                  width: `${(el.w / 960) * 100}%`,
-                  height: `${(el.h / 540) * 100}%`,
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setSelectedElement(el.id)
-                }}
-              >
-                {el.kind === 'text' && (
-                  <div
-                    className="slides-text-content"
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={() => onDirtyChange(true)}
-                  >
-                    {el.text}
-                  </div>
-                )}
-                {el.kind === 'image' && el.src && (
-                  <img src={el.src} alt="" className="slides-image-content" />
-                )}
-              </div>
-            ))}
+          <div className="slides-canvas">
+            <div className="slides-slide">
+              {currentSlideData?.title && (
+                <h2 className="slides-slide-title">{currentSlideData.title}</h2>
+              )}
+              {currentSlideData?.elements?.map((elem) => (
+                <div
+                  key={elem.id}
+                  className={`slides-element ${selectedElement === elem.id ? 'selected' : ''}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${(elem.x / 9144000) * 100}%`,
+                    top: `${(elem.y / 6858000) * 100}%`,
+                    width: elem.width ? `${(elem.width / 9144000) * 100}%` : 'auto',
+                  }}
+                  onClick={() => handleElementClick(elem)}
+                  onDoubleClick={() => handleElementClick(elem)}
+                >
+                  {selectedElement === elem.id ? (
+                    <textarea
+                      className="slides-element-edit"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      onBlur={handleElementUpdate}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') { setSelectedElement(null) }
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { handleElementUpdate() }
+                      }}
+                      autoFocus
+                    />
+                  ) : (
+                    <div className="slides-element-text">{elem.text}</div>
+                  )}
+                </div>
+              ))}
+              {(!currentSlideData?.elements || currentSlideData.elements.length === 0) && (
+                <div className="slides-placeholder">
+                  <div className="slides-placeholder-text">Click to add content</div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="slides-status">
+            Slide {currentSlide + 1} of {slides.length}
           </div>
         </div>
-      </div>
-      <div className="slides-footer">
-        <span>Slide {currentSlide + 1} of {slides.length}</span>
       </div>
     </div>
   )
