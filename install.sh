@@ -4,7 +4,6 @@
 # Or:    ./install.sh [--prefix /usr/local] [--version 0.1.0] [--from-source]
 set -euo pipefail
 
-# ── Configuration ────────────────────────────────────────────────────
 APP_NAME="office-ai"
 DISPLAY_NAME="Office AI"
 GITHUB_REPO="ankurCES/office-ai"
@@ -12,13 +11,8 @@ GITHUB_URL="https://github.com/${GITHUB_REPO}"
 DEFAULT_VERSION="latest"
 DEFAULT_PREFIX="/usr/local"
 
-# ── Colors ───────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; BOLD='\033[1m'; NC='\033[0m'
 
 log()  { printf "${BLUE}▸${NC} %s\n" "$*"; }
 ok()   { printf "${GREEN}✓${NC} %s\n" "$*"; }
@@ -27,8 +21,7 @@ err()  { printf "${RED}✗${NC} %s\n" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 banner() {
-  printf "\n"
-  printf "${BOLD}${BLUE}"
+  printf "\n${BOLD}${BLUE}"
   cat <<'BANNER'
    ____  __  __ _              _    ___
   / __ \/ _|/ _(_)            / \  |_ _|
@@ -36,7 +29,6 @@ banner() {
  | |  | |  _|  _| |/ __/ _ / ___ \ | |
  | |__| | | | | | | (_|  __/ /   \ \| |
   \____/|_| |_| |_|\___\___/_/   \_\___|
-
 BANNER
   printf "${NC}\n"
   printf "  ${BOLD}${DISPLAY_NAME} Installer${NC}\n"
@@ -64,12 +56,10 @@ Options:
   --skip-deps        Skip dependency installation
   -h, --help         Show this help
 
-One-liner install:
+Examples:
   curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh | bash
-
-One-liner with options:
-  curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh | bash -s -- --prefix ~/.local
-
+  curl -fsSL ... | bash -s -- --prefix ~/.local
+  curl -fsSL ... | bash -s -- --from-source
 EOF
   exit 0
 }
@@ -90,59 +80,39 @@ done
 detect_platform() {
   OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
   ARCH="$(uname -m)"
-
   case "$OS" in
     darwin) OS="darwin" ;;
     linux)  OS="linux" ;;
     msys*|mingw*|cygwin*) OS="windows" ;;
-    *)      die "Unsupported operating system: $OS" ;;
+    *)      die "Unsupported OS: $OS" ;;
   esac
-
   case "$ARCH" in
-    x86_64|amd64)  ARCH="amd64" ;;
+    x86_64|amd64) ARCH="amd64" ;;
     arm64|aarch64) ARCH="arm64" ;;
     *)             die "Unsupported architecture: $ARCH" ;;
   esac
-
   PLATFORM="${OS}/${ARCH}"
 }
 
-# ── Dependency checks ───────────────────────────────────────────────
-has()     { command -v "$1" >/dev/null 2>&1; }
-need()    { has "$1" || die "$1 is required but not found. $2"; }
-
-check_deps_common() {
-  need "git" "Install: https://git-scm.com/downloads"
-  need "curl" "Install: your package manager (apt/brew/dnf)"
-}
+# ── Dependency helpers ───────────────────────────────────────────────
+has() { command -v "$1" >/dev/null 2>&1; }
 
 install_go() {
   if has go; then
-    local ver
-    ver="$(go version | grep -oE '[0-9]+\.[0-9]+' | head -1)"
-    log "Go ${ver} found"
+    log "Go $(go version | grep -oE '[0-9]+\.[0-9]+' | head -1) found"
     return
   fi
-
   log "Installing Go..."
   local go_ver="1.24.4"
-  local go_os="$OS"
-  local go_arch="$ARCH"
-  local go_url="https://go.dev/dl/go${go_ver}.${go_os}-${go_arch}.tar.gz"
-
-  local tmp
-  tmp="$(mktemp -d)"
+  local go_url="https://go.dev/dl/go${go_ver}.${OS}-${ARCH}.tar.gz"
+  local tmp; tmp="$(mktemp -d)"
   curl -fsSL "$go_url" -o "${tmp}/go.tar.gz"
-
   if [[ -w /usr/local ]]; then
-    rm -rf /usr/local/go
-    tar -C /usr/local -xzf "${tmp}/go.tar.gz"
+    rm -rf /usr/local/go && tar -C /usr/local -xzf "${tmp}/go.tar.gz"
   else
-    sudo rm -rf /usr/local/go
-    sudo tar -C /usr/local -xzf "${tmp}/go.tar.gz"
+    sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf "${tmp}/go.tar.gz"
   fi
   rm -rf "$tmp"
-
   export PATH="/usr/local/go/bin:$HOME/go/bin:$PATH"
   ok "Go $(go version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+') installed"
 }
@@ -152,7 +122,6 @@ install_node() {
     log "Node $(node --version) found"
     return
   fi
-
   log "Installing Node.js..."
   if has brew; then
     brew install node
@@ -171,11 +140,16 @@ install_node() {
 }
 
 install_wails() {
+  # Check PATH and ~/go/bin
   if has wails; then
     log "Wails found"
     return
   fi
-
+  if [[ -x "$HOME/go/bin/wails" ]]; then
+    export PATH="$HOME/go/bin:$PATH"
+    log "Wails found in ~/go/bin"
+    return
+  fi
   log "Installing Wails CLI..."
   go install github.com/wailsapp/wails/v2/cmd/wails@latest
   export PATH="$HOME/go/bin:$PATH"
@@ -184,73 +158,35 @@ install_wails() {
 
 install_linux_deps() {
   [[ "$OS" != "linux" ]] && return
-
   log "Checking Linux build dependencies..."
 
-  local pm=""
-  local pkgs=()
-
   if has apt-get; then
-    pm="apt-get"
-    # Check each package
-    for pkg in libgtk-3-dev libwebkit2gtk-4.0-dev build-essential pkg-config; do
+    local pkgs=()
+    for pkg in libgtk-3-dev build-essential pkg-config; do
       dpkg -s "$pkg" >/dev/null 2>&1 || pkgs+=("$pkg")
     done
-    # Fallback: try 4.1 if 4.0 not available
-    if [[ " ${pkgs[*]} " =~ "libwebkit2gtk-4.0-dev" ]]; then
+    # webkit2gtk: prefer 4.1 (newer distros), fall back to 4.0
+    if ! dpkg -s libwebkit2gtk-4.1-dev >/dev/null 2>&1 && ! dpkg -s libwebkit2gtk-4.0-dev >/dev/null 2>&1; then
       if apt-cache show libwebkit2gtk-4.1-dev >/dev/null 2>&1; then
-        pkgs=("${pkgs[@]/libwebkit2gtk-4.0-dev/libwebkit2gtk-4.1-dev}")
+        pkgs+=("libwebkit2gtk-4.1-dev")
+      else
+        pkgs+=("libwebkit2gtk-4.0-dev")
       fi
     fi
+    if [[ ${#pkgs[@]} -gt 0 ]]; then
+      log "Installing: ${pkgs[*]}"
+      sudo apt-get update -qq && sudo apt-get install -y "${pkgs[@]}"
+    fi
   elif has dnf; then
-    pm="dnf"
     for pkg in gtk3-devel webkit2gtk4.0-devel gcc gcc-c++ pkgconf-pkg-config; do
-      rpm -q "$pkg" >/dev/null 2>&1 || pkgs+=("$pkg")
+      rpm -q "$pkg" >/dev/null 2>&1 || sudo dnf install -y "$pkg"
     done
   elif has pacman; then
-    pm="pacman"
     for pkg in gtk3 webkit2gtk base-devel pkgconf; do
-      pacman -Q "$pkg" >/dev/null 2>&1 || pkgs+=("$pkg")
+      pacman -Q "$pkg" >/dev/null 2>&1 || sudo pacman -S --noconfirm "$pkg"
     done
   fi
-
-  if [[ ${#pkgs[@]} -eq 0 ]]; then
-    ok "All Linux dependencies present"
-    return
-  fi
-
-  log "Installing: ${pkgs[*]}"
-  case "$pm" in
-    apt-get) sudo apt-get update -qq && sudo apt-get install -y "${pkgs[@]}" ;;
-    dnf)     sudo dnf install -y "${pkgs[@]}" ;;
-    pacman)  sudo pacman -S --noconfirm "${pkgs[@]}" ;;
-    *)       warn "Unknown package manager. Install manually: ${pkgs[*]}" ;;
-  esac
-  ok "Linux dependencies installed"
-}
-
-install_macos_deps() {
-  [[ "$OS" != "darwin" ]] && return
-
-  if ! has xcode-select; then
-    log "Installing Xcode command line tools..."
-    xcode-select --install 2>/dev/null || true
-  fi
-  ok "macOS build tools present"
-}
-
-install_all_deps() {
-  if $SKIP_DEPS; then
-    log "Skipping dependency installation (--skip-deps)"
-    return
-  fi
-
-  check_deps_common
-  install_go
-  install_node
-  install_linux_deps
-  install_macos_deps
-  install_wails
+  ok "Linux dependencies satisfied"
 }
 
 # ── Uninstall ────────────────────────────────────────────────────────
@@ -258,310 +194,260 @@ do_uninstall() {
   banner
   log "Uninstalling ${DISPLAY_NAME}..."
 
-  local bin_path="${PREFIX}/bin/${APP_NAME}"
-
-  if [[ -f "$bin_path" ]]; then
-    if [[ -w "$bin_path" ]]; then
-      rm -f "$bin_path"
-    else
-      sudo rm -f "$bin_path"
+  # Binary
+  for p in "${PREFIX}/bin/${APP_NAME}" "/usr/local/bin/${APP_NAME}" "$HOME/.local/bin/${APP_NAME}"; do
+    if [[ -f "$p" ]]; then
+      rm -f "$p" 2>/dev/null || sudo rm -f "$p"
+      ok "Removed $p"
     fi
-    ok "Removed ${bin_path}"
-  else
-    warn "Binary not found at ${bin_path}"
+  done
+
+  # macOS app bundle
+  if [[ -d "/Applications/${DISPLAY_NAME}.app" ]]; then
+    rm -rf "/Applications/${DISPLAY_NAME}.app"
+    ok "Removed /Applications/${DISPLAY_NAME}.app"
   fi
 
-  # macOS: remove app bundle
-  if [[ "$OS" == "darwin" ]]; then
-    local app_path="/Applications/${DISPLAY_NAME}.app"
-    if [[ -d "$app_path" ]]; then
-      rm -rf "$app_path"
-      ok "Removed ${app_path}"
+  # Linux desktop entry
+  for d in "$HOME/.local/share/applications" "/usr/share/applications"; do
+    if [[ -f "${d}/${APP_NAME}.desktop" ]]; then
+      rm -f "${d}/${APP_NAME}.desktop" 2>/dev/null || sudo rm -f "${d}/${APP_NAME}.desktop"
+      ok "Removed desktop entry"
     fi
-  fi
-
-  # Linux: remove desktop entry
-  if [[ "$OS" == "linux" ]]; then
-    local desktop_path="$HOME/.local/share/applications/${APP_NAME}.desktop"
-    if [[ -f "$desktop_path" ]]; then
-      rm -f "$desktop_path"
-      ok "Removed ${desktop_path}"
-    fi
-  fi
+  done
 
   # Config (ask first)
-  local config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/${APP_NAME}"
-  if [[ -d "$config_dir" ]]; then
-    printf "Remove config directory ${config_dir}? [y/N] "
-    read -r answer
-    if [[ "$answer" =~ ^[Yy] ]]; then
-      rm -rf "$config_dir"
-      ok "Removed ${config_dir}"
-    fi
+  if [[ -d "$HOME/.${APP_NAME}" ]]; then
+    warn "Config directory exists: ~/.${APP_NAME}"
+    warn "Remove manually with: rm -rf ~/.${APP_NAME}"
   fi
 
-  ok "${DISPLAY_NAME} uninstalled"
+  ok "Uninstall complete"
   exit 0
-}
-
-# ── Build from source ────────────────────────────────────────────────
-build_from_source() {
-  local src_dir
-  src_dir="$(mktemp -d)"
-  local clone_dir="${src_dir}/${APP_NAME}"
-
-  log "Cloning ${GITHUB_URL}..."
-  if [[ "$VERSION" == "latest" ]]; then
-    git clone --depth 1 "${GITHUB_URL}.git" "$clone_dir"
-  else
-    git clone --depth 1 --branch "v${VERSION}" "${GITHUB_URL}.git" "$clone_dir" 2>/dev/null || \
-      git clone --depth 1 --branch "${VERSION}" "${GITHUB_URL}.git" "$clone_dir"
-  fi
-
-  cd "$clone_dir"
-
-  log "Installing frontend dependencies..."
-  cd frontend
-  npm ci --silent 2>/dev/null || npm install --silent
-  cd ..
-
-  log "Building with Wails..."
-  if has wails; then
-    wails build -clean 2>&1 || {
-      warn "Wails build failed, trying manual build..."
-      manual_build "$clone_dir"
-    }
-  else
-    manual_build "$clone_dir"
-  fi
-
-  # Find the built binary
-  local built_bin=""
-  if [[ -f "build/bin/${APP_NAME}" ]]; then
-    built_bin="build/bin/${APP_NAME}"
-  elif [[ -f "build/bin/${APP_NAME}.app/Contents/MacOS/${APP_NAME}" ]]; then
-    built_bin="build/bin/${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
-  else
-    # Search for it
-    built_bin="$(find build/bin -type f -name "${APP_NAME}" 2>/dev/null | head -1 || true)"
-  fi
-
-  if [[ -z "$built_bin" || ! -f "$built_bin" ]]; then
-    die "Build succeeded but binary not found in build/bin/"
-  fi
-
-  echo "$built_bin"
-}
-
-manual_build() {
-  local dir="$1"
-  cd "$dir"
-
-  log "Building frontend..."
-  cd frontend && npm run build && cd ..
-
-  log "Building Go backend..."
-  mkdir -p build/bin
-  CGO_ENABLED=1 go build \
-    -tags "desktop,production" \
-    -ldflags "-s -w -X main.Version=${VERSION}" \
-    -o "build/bin/${APP_NAME}" \
-    .
 }
 
 # ── Download pre-built binary ────────────────────────────────────────
 download_binary() {
-  local download_url
-  local archive_name="${APP_NAME}-${VERSION}-${OS}-${ARCH}.tar.gz"
+  log "Checking for pre-built binary..."
 
+  local tag_url
   if [[ "$VERSION" == "latest" ]]; then
-    download_url="${GITHUB_URL}/releases/latest/download/${archive_name}"
+    tag_url="${GITHUB_URL}/releases/latest/download"
   else
-    download_url="${GITHUB_URL}/releases/download/v${VERSION}/${archive_name}"
+    tag_url="${GITHUB_URL}/releases/download/v${VERSION}"
   fi
 
-  local tmp
-  tmp="$(mktemp -d)"
+  local archive="${APP_NAME}-${OS}-${ARCH}.tar.gz"
+  local url="${tag_url}/${archive}"
+  local tmp; tmp="$(mktemp -d)"
 
-  log "Downloading ${archive_name}..."
-  if curl -fsSL "$download_url" -o "${tmp}/${archive_name}" 2>/dev/null; then
-    cd "$tmp"
-    tar xzf "$archive_name"
-    local bin_path
-    bin_path="$(find . -type f -name "${APP_NAME}" ! -name "*.tar.gz" | head -1)"
-    if [[ -n "$bin_path" ]]; then
-      echo "$bin_path"
+  log "Downloading ${url}..." >&2
+  if curl -fsSL --connect-timeout 10 "$url" -o "${tmp}/${archive}" 2>/dev/null; then
+    tar xzf "${tmp}/${archive}" -C "$tmp"
+    local binary
+    binary="$(find "$tmp" -type f -executable -name "${APP_NAME}*" ! -name "*.tar.gz" | head -1)"
+    if [[ -z "$binary" ]]; then
+      binary="$(find "$tmp" -type f -name "${APP_NAME}" | head -1)"
+    fi
+    if [[ -n "$binary" && -f "$binary" ]]; then
+      echo "$binary"
       return 0
     fi
   fi
 
-  # No pre-built binary available, fall back to source
-  warn "No pre-built binary for ${OS}/${ARCH}. Building from source..."
-  FROM_SOURCE=true
+  warn "No pre-built binary available for ${OS}/${ARCH}" >&2
+  rm -rf "$tmp"
   return 1
 }
 
-# ── Install binary ───────────────────────────────────────────────────
-install_binary() {
-  local src_bin="$1"
-  local dest_dir="${PREFIX}/bin"
-  local dest_bin="${dest_dir}/${APP_NAME}"
+# ── Build from source ────────────────────────────────────────────────
+build_from_source() {
+  log "Building from source..." >&2
 
-  log "Installing to ${dest_bin}..."
-
-  mkdir -p "$dest_dir" 2>/dev/null || sudo mkdir -p "$dest_dir"
-
-  if [[ -w "$dest_dir" ]]; then
-    cp "$src_bin" "$dest_bin"
-    chmod +x "$dest_bin"
-  else
-    sudo cp "$src_bin" "$dest_bin"
-    sudo chmod +x "$dest_bin"
+  # Install deps
+  if ! $SKIP_DEPS; then
+    install_go
+    install_node
+    install_linux_deps
+    install_wails
   fi
 
-  ok "Binary installed → ${dest_bin}"
+  # Clone or use existing
+  local src_dir
+  if [[ -f "wails.json" && -f "go.mod" ]]; then
+    src_dir="$(pwd)"
+    log "Using current directory as source" >&2
+  else
+    src_dir="$(mktemp -d)"
+    log "Cloning ${GITHUB_URL}..." >&2
+    git clone --depth 1 "$GITHUB_URL" "$src_dir" >&2
+  fi
+
+  cd "$src_dir"
+
+  # Ensure wails is in PATH
+  export PATH="$HOME/go/bin:$PATH"
+
+  # Detect webkit2gtk version for Linux
+  local webkit_tag=""
+  if [[ "$OS" == "linux" ]]; then
+    if pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+      webkit_tag="webkit2_41"
+      log "Detected webkit2gtk-4.1" >&2
+    elif pkg-config --exists webkit2gtk-4.0 2>/dev/null; then
+      log "Detected webkit2gtk-4.0" >&2
+    else
+      die "No webkit2gtk found. Install libwebkit2gtk-4.1-dev or libwebkit2gtk-4.0-dev"
+    fi
+  fi
+
+  # Build
+  local tag_flags=""
+  [[ -n "$webkit_tag" ]] && tag_flags="-tags ${webkit_tag}"
+  log "Running: wails build ${tag_flags}" >&2
+  wails build ${tag_flags} >&2
+
+  # Find the binary — it goes to build/bin/<outputfilename> per wails.json
+  local binary=""
+  local build_bin="build/bin"
+
+  # 1. Check exact expected path from wails.json outputfilename
+  if [[ -f "${build_bin}/${APP_NAME}" ]]; then
+    binary="${build_bin}/${APP_NAME}"
+  fi
+
+  # 2. Check macOS .app bundle
+  if [[ -z "$binary" && -d "${build_bin}/${APP_NAME}.app" ]]; then
+    binary="${build_bin}/${APP_NAME}.app/Contents/MacOS/${APP_NAME}"
+  fi
+
+  # 3. Search build/bin for any executable
+  if [[ -z "$binary" || ! -f "$binary" ]]; then
+    binary="$(find "${build_bin}" -type f -executable 2>/dev/null | head -1 || true)"
+  fi
+
+  # 4. Search broader build directory
+  if [[ -z "$binary" || ! -f "$binary" ]]; then
+    binary="$(find build -type f -executable -name "${APP_NAME}*" 2>/dev/null | head -1 || true)"
+  fi
+
+  if [[ -z "$binary" || ! -f "$binary" ]]; then
+    echo "Build directory contents:" >&2
+    find build -type f 2>/dev/null | head -20 >&2
+    die "Build succeeded but binary not found. Check build/bin/ directory."
+  fi
+
+  ok "Built: ${binary} ($(du -sh "$binary" | cut -f1))" >&2
+  echo "$binary"
 }
 
-# ── macOS integration ────────────────────────────────────────────────
+# ── Install the binary ───────────────────────────────────────────────
+install_binary() {
+  local binary="$1"
+  [[ -f "$binary" ]] || die "Binary not found: ${binary}"
+
+  local bin_dir="${PREFIX}/bin"
+  local dest="${bin_dir}/${APP_NAME}"
+
+  log "Installing to ${dest}..."
+
+  if [[ -w "$bin_dir" ]] || mkdir -p "$bin_dir" 2>/dev/null; then
+    cp "$binary" "$dest"
+    chmod +x "$dest"
+  else
+    sudo mkdir -p "$bin_dir"
+    sudo cp "$binary" "$dest"
+    sudo chmod +x "$dest"
+  fi
+
+  ok "Installed: ${dest}"
+}
+
+# ── Platform integration ─────────────────────────────────────────────
 setup_macos() {
   [[ "$OS" != "darwin" ]] && return
 
-  local app_dir="/Applications/${DISPLAY_NAME}.app"
-
-  # If Wails built a .app bundle, copy it to /Applications
-  local built_app=""
-  built_app="$(find /tmp -maxdepth 3 -name "${APP_NAME}.app" -type d 2>/dev/null | head -1 || true)"
-
-  if [[ -d "$built_app" ]]; then
+  # Copy .app bundle to /Applications if it exists
+  local app_bundle
+  app_bundle="$(find build -name "${APP_NAME}.app" -type d 2>/dev/null | head -1)"
+  if [[ -n "$app_bundle" && -d "$app_bundle" ]]; then
     log "Installing app bundle to /Applications..."
-    rm -rf "$app_dir"
-    cp -R "$built_app" "$app_dir"
-    ok "App bundle → ${app_dir}"
-  else
-    # Create a minimal app bundle pointing to the installed binary
-    log "Creating macOS app bundle..."
-    mkdir -p "${app_dir}/Contents/MacOS"
-    mkdir -p "${app_dir}/Contents/Resources"
-
-    # Symlink to the installed binary
-    ln -sf "${PREFIX}/bin/${APP_NAME}" "${app_dir}/Contents/MacOS/${APP_NAME}"
-
-    cat > "${app_dir}/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>${DISPLAY_NAME}</string>
-  <key>CFBundleDisplayName</key><string>${DISPLAY_NAME}</string>
-  <key>CFBundleIdentifier</key><string>com.officeai.app</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleExecutable</key><string>${APP_NAME}</string>
-  <key>NSHighResolutionCapable</key><true/>
-  <key>CFBundleDocumentTypes</key>
-  <array>
-    <dict>
-      <key>CFBundleTypeExtensions</key>
-      <array><string>docx</string><string>xlsx</string><string>pptx</string><string>pdf</string><string>md</string></array>
-      <key>CFBundleTypeRole</key><string>Editor</string>
-    </dict>
-  </array>
-</dict>
-</plist>
-PLIST
-    ok "App bundle → ${app_dir}"
+    if [[ -w /Applications ]]; then
+      rm -rf "/Applications/${DISPLAY_NAME}.app"
+      cp -R "$app_bundle" "/Applications/${DISPLAY_NAME}.app"
+    else
+      sudo rm -rf "/Applications/${DISPLAY_NAME}.app"
+      sudo cp -R "$app_bundle" "/Applications/${DISPLAY_NAME}.app"
+    fi
+    ok "App bundle → /Applications/${DISPLAY_NAME}.app"
   fi
 }
 
-# ── Linux integration ────────────────────────────────────────────────
 setup_linux() {
   [[ "$OS" != "linux" ]] && return
 
-  local desktop_dir="${HOME}/.local/share/applications"
+  local desktop_dir="$HOME/.local/share/applications"
   mkdir -p "$desktop_dir"
 
-  local desktop_file="${desktop_dir}/${APP_NAME}.desktop"
-
-  cat > "$desktop_file" <<DESKTOP
+  cat > "${desktop_dir}/${APP_NAME}.desktop" <<DESKTOP
 [Desktop Entry]
 Name=${DISPLAY_NAME}
 Comment=AI-powered office suite
-Exec=${PREFIX}/bin/${APP_NAME} %F
+Exec=${PREFIX}/bin/${APP_NAME}
 Icon=${APP_NAME}
 Type=Application
 Categories=Office;WordProcessor;Spreadsheet;Presentation;
-MimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/pdf;text/markdown;text/csv;
 Terminal=false
-StartupNotify=true
+StartupWMClass=${DISPLAY_NAME}
 DESKTOP
 
-  # Update desktop database if available
+  # Copy icon if available
+  local icon_dir="$HOME/.local/share/icons/hicolor/256x256/apps"
+  if [[ -f build/appicon.png ]]; then
+    mkdir -p "$icon_dir"
+    cp build/appicon.png "${icon_dir}/${APP_NAME}.png"
+  fi
+
+  # Update desktop database
   if has update-desktop-database; then
     update-desktop-database "$desktop_dir" 2>/dev/null || true
   fi
 
-  ok "Desktop entry → ${desktop_file}"
-
-  # MIME type associations
-  if has xdg-mime; then
-    for mime in \
-      application/vnd.openxmlformats-officedocument.wordprocessingml.document \
-      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet \
-      application/vnd.openxmlformats-officedocument.presentationml.presentation; do
-      xdg-mime default "${APP_NAME}.desktop" "$mime" 2>/dev/null || true
-    done
-    ok "MIME associations set"
-  fi
+  ok "Desktop entry installed"
 }
 
-# ── Create config directory ──────────────────────────────────────────
 setup_config() {
-  local config_dir
-
-  if [[ "$OS" == "darwin" ]]; then
-    config_dir="$HOME/Library/Application Support/${DISPLAY_NAME}"
-  else
-    config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/${APP_NAME}"
-  fi
-
+  local config_dir="$HOME/.${APP_NAME}"
   mkdir -p "$config_dir"
 
-  # Default config if none exists
-  if [[ ! -f "${config_dir}/settings.json" ]]; then
-    cat > "${config_dir}/settings.json" <<JSON
+  if [[ ! -f "${config_dir}/config.json" ]]; then
+    cat > "${config_dir}/config.json" <<JSON
 {
-  "language": "en",
   "theme": "system",
-  "autosave": true,
-  "autosave_delay_ms": 2000,
-  "ai_provider": "genspark",
-  "recent_files_limit": 50,
-  "font_size": 14,
-  "show_line_numbers": true,
-  "word_wrap": true
+  "language": "en",
+  "fontSize": 14,
+  "autoSaveDelay": 2000,
+  "provider": "anthropic"
 }
 JSON
-    ok "Default config → ${config_dir}/settings.json"
+    ok "Default config → ${config_dir}/config.json"
   fi
 }
 
-# ── Verify installation ─────────────────────────────────────────────
 verify_install() {
-  local bin_path="${PREFIX}/bin/${APP_NAME}"
-
-  if [[ ! -x "$bin_path" ]]; then
-    die "Installation verification failed: ${bin_path} not found or not executable"
+  local installed="${PREFIX}/bin/${APP_NAME}"
+  if [[ -x "$installed" ]]; then
+    ok "Verified: ${installed} is executable"
+  else
+    warn "Binary installed but may not be executable"
+    chmod +x "$installed" 2>/dev/null || sudo chmod +x "$installed"
   fi
 
-  # Check it's on PATH
-  if ! has "$APP_NAME"; then
-    warn "${APP_NAME} is installed but not on your PATH"
-    warn "Add this to your shell profile:"
-    warn "  export PATH=\"${PREFIX}/bin:\$PATH\""
+  # Check PATH
+  if ! echo "$PATH" | tr ':' '\n' | grep -q "^${PREFIX}/bin$"; then
+    warn "${PREFIX}/bin is not in PATH"
+    warn "Add to your shell profile:  export PATH=\"${PREFIX}/bin:\$PATH\""
   fi
-
-  ok "Installation verified"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────
@@ -573,36 +459,25 @@ main() {
     do_uninstall
   fi
 
-  log "Platform: ${BOLD}${PLATFORM}${NC}"
-  log "Prefix:   ${BOLD}${PREFIX}${NC}"
-  log "Version:  ${BOLD}${VERSION}${NC}"
-  log "Method:   ${BOLD}$(if $FROM_SOURCE; then echo "source"; else echo "binary (fallback: source)"; fi)${NC}"
+  log "Platform: ${OS}/${ARCH}"
+  log "Prefix:   ${PREFIX}"
+  log "Version:  ${VERSION}"
   echo ""
 
-  # Step 1: Dependencies
-  install_all_deps
-
-  # Step 2: Get the binary
+  # Get the binary
   local binary_path=""
-
   if $FROM_SOURCE; then
     binary_path="$(build_from_source)"
   else
     binary_path="$(download_binary)" || binary_path="$(build_from_source)"
   fi
 
-  # Step 3: Install
   install_binary "$binary_path"
-
-  # Step 4: Platform integration
   setup_macos
   setup_linux
   setup_config
-
-  # Step 5: Verify
   verify_install
 
-  # Done!
   echo ""
   printf "${GREEN}${BOLD}"
   cat <<'DONE'
@@ -612,11 +487,11 @@ main() {
 DONE
   printf "${NC}\n"
 
-  log "Run with:  ${BOLD}${APP_NAME}${NC}"
+  log "Run:       ${BOLD}${APP_NAME}${NC}"
   if [[ "$OS" == "darwin" ]]; then
     log "Or open:   ${BOLD}/Applications/${DISPLAY_NAME}.app${NC}"
   elif [[ "$OS" == "linux" ]]; then
-    log "Or find in your application launcher"
+    log "Or find:   in your application launcher"
   fi
   echo ""
   log "Uninstall: ${BOLD}curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh | bash -s -- --uninstall${NC}"

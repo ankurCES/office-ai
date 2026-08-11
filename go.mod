@@ -2,7 +2,11 @@ module github.com/ankurCES/office-ai
 
 go 1.25.0
 
-require github.com/wailsapp/wails/v2 v2.14.0
+require (
+	github.com/pdfcpu/pdfcpu v0.14.0
+	github.com/wailsapp/wails/v2 v2.14.0
+	github.com/xuri/excelize/v2 v2.11.0
+)
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
@@ -23,7 +27,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.27 // indirect
-	github.com/pdfcpu/pdfcpu v0.14.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/richardlehane/mscfb v1.0.7 // indirect
@@ -37,7 +40,6 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	github.com/xuri/efp v0.0.1 // indirect
-	github.com/xuri/excelize/v2 v2.11.0 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.54.0 // indirect
